@@ -21,6 +21,11 @@ import os
 from pathlib import Path
 
 import torch
+if not torch.cuda.is_available():
+    raise RuntimeError(
+        "No GPU available. Are you running on the frontend? "
+        "Use `salloc + srun --pty bash` to get onto a compute node first."
+    )
 import yaml
 from datasets import load_dataset
 from peft import LoraConfig, prepare_model_for_kbit_training
