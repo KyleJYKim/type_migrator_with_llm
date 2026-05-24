@@ -2,6 +2,18 @@
 SFT (Supervised Fine-Tuning) training script for elixir_type prediction.
 Usage:
     python scripts/train_sft.py --config configs/qwen7b_qlora.yaml
+    1. Load config from a YAML file.
+    2.Load the pre-trained LLM (in our case it'll be "Qwen2.5-Coder-0.5B") in 4-bit to save GPU memory.
+    3. Attach LoRA adapters so only a tiny fraction of weights are trainable.
+    4. Format training data into prompt/completion strings.
+    5. Train for several epochs, evaluating on validation data periodically.
+    6. Save the LoRA adapter -> later merged with the base model for inference.
+libraries:
+    transformers: Load any pre-trained LLM from HuggingFace
+    peft: Apply LoRA (parameter-efficient fine-tuning)
+    bitsandbytes: 4-bit quantization to reduce GPU memory
+    trl: `SFTTrainer`, a high-level training loop built for fine-tuning
+    datasets: Load and process training data
 """
 import argparse
 import json
@@ -21,13 +33,23 @@ from trl import SFTConfig, SFTTrainer
 
 
 def load_config(path):
+    """
+    All hyperparameters (learning rate, batch size, model name, LoRA settings) live in a separate YAML file.
+    This keeps the training script generic and reusable - just swap the config file
+    """
     with open(path) as f:
         return yaml.safe_load(f)
 
 
 def format_prompt(example):
-    """Build the training text. We train on the full text and rely on
-    `completion_only_loss` in SFTConfig to ignore the prompt tokens."""
+    """
+    Build the training text. 
+    We train on the full text and rely on `completion_only_loss` in SFTConfig to ignore the prompt tokens.
+    Each raw data example gets formatted into on big string:
+        • Prompt = the context the model sees (module name, types, function definition)
+        • Completion = the answer the model must learn to produce
+        • `<|endoftext|>` = a special token telling the model "this is where the answer end"
+    """
     type_block = ""
     if example.get("type"):
         if isinstance(example["type"], list):
@@ -58,7 +80,13 @@ def main():
     print(f"=== Config ===\n{json.dumps(cfg, indent=2)}")
     print(f"=== Output: {output_dir} ===")
 
-    # --- Model + tokenizer ---
+    # Model + tokenizer
+    """
+    A 7B parameter model normally needs ~14GB GPU RAM (in float16).
+    4-bit quantization compresses weights so it fits in ~5-6GB,
+    making fine-tuning possible on a single GPU.
+    * `nf4` = "NormalFloat 4-bit", a special format that works well for LLMs.
+    """
     bnb = BitsAndBytesConfig(
         load_in_4bit=cfg["quantization"]["load_in_4bit"],
         bnb_4bit_quant_type=cfg["quantization"]["bnb_4bit_quant_type"],
@@ -80,7 +108,15 @@ def main():
     model.config.use_cache = False
     model = prepare_model_for_kbit_training(model)
 
-    # --- LoRA ---
+    # LoRA: Train only a tiny fraction of weights
+    """
+    Instead of updating all 7B weights (very expensive indeed), LoRA injects small trainable matrics into specific layers.
+    Only ~0.1-1% of weights are trained, and yet results are nearly as good.
+    Parameter:
+        • `r`: Rank of LoRA matrices - higher = more capacity but more memory
+        • `lora_alpha`: Scaling factor for LoRA updates
+        • `target_modules`: Which layers to inject LoRA into (usually attention layers)
+    """
     lora = LoraConfig(
         r=cfg["lora"]["r"],
         lora_alpha=cfg["lora"]["alpha"],
@@ -90,7 +126,10 @@ def main():
         task_type="CAUSAL_LM",
     )
 
-    # --- Data ---
+    # Load Data
+    """
+    JSONL files (one JSON object per line) are loaded and each example is converted to a single `"text"` field using `format_prompt()`.
+    """
     data_dir = Path(args.data_dir)
     raw = load_dataset(
         "json",
@@ -103,7 +142,18 @@ def main():
     print(f"Train: {len(ds['train'])}, Val: {len(ds['validation'])}")
     print(f"Sample text[0]:\n{ds['train'][0]['text'][:600]}")
 
-    # --- Trainer ---
+    # Trainer: Training hyperparameters
+    """
+    Setting:
+        • `per_device_train_batch_size: Examples per GPU per step (small = less memory)
+        • `gradient_accumulation_steps`: Simulate a larger batch by accumulating gradients over N steps
+        • `learning_rate`: How fast the model updates weights
+        • `num_train_epochs`: How many times to loop over the full dataset
+        • `bf16=-True`: Use bfloat16 precision for faster math
+        • `packing`: Concatenate short examples to fill the full context window (efficiency trick)
+        • `completion_only_loss=False`: Compute loss over the entire text (prompt + answer), not just the answer
+        
+    """
     sft_config = SFTConfig(
         output_dir=output_dir,
         per_device_train_batch_size=cfg["training"]["per_device_train_batch_size"],
@@ -139,6 +189,11 @@ def main():
         tokenizer=tokenizer,
     )
 
+    """
+    `trainer.train()` runs the full training loop.
+    Afterwards, only the small LoRA adapter is saved (not the full model); 
+    which might be just a few hundred MB instead of 14GB.
+    """
     trainer.train()
     trainer.save_model(output_dir)
     tokenizer.save_pretrained(output_dir)
