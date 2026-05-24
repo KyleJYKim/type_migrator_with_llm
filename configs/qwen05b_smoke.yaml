@@ -15,6 +15,7 @@ lora:
 
 training:
   per_device_train_batch_size: 4
+  per_device_eval_batch_size: 1    # force eval batch to 1
   gradient_accumulation_steps: 4
   num_train_epochs: 3              # was 1
   learning_rate: 0.0002
@@ -24,7 +25,7 @@ training:
   bf16: true
   optim: paged_adamw_8bit
   packing: true
-  max_seq_length: 2048
+  max_seq_length: 1024             # WAS 2048 — halve to cut eval mem in half
   seed: 42
   eval_steps: 5                    # was 50
   save_steps: 20                   # was 200
