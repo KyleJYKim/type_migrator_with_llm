@@ -44,7 +44,7 @@ def load_config(path):
 def format_prompt(example):
     """
     Build the training text. 
-    We train on the full text and rely on `completion_only_loss` in SFTConfig to ignore the prompt tokens.
+    Train on the full text.
     Each raw data example gets formatted into on big string:
         • Prompt = the context the model sees (module name, types, function definition)
         • Completion = the answer the model must learn to produce
@@ -151,7 +151,6 @@ def main():
         • `num_train_epochs`: How many times to loop over the full dataset
         • `bf16=-True`: Use bfloat16 precision for faster math
         • `packing`: Concatenate short examples to fill the full context window (efficiency trick)
-        • `completion_only_loss=False`: Compute loss over the entire text (prompt + answer), not just the answer
         
     """
     sft_config = SFTConfig(
@@ -175,7 +174,6 @@ def main():
         save_total_limit=cfg["training"]["save_total_limit"],
         logging_steps=cfg["training"]["logging_steps"],
         report_to=cfg["training"]["report_to"],
-        completion_only_loss=False,  # we keep the loss over the full text for now
         dataset_text_field="text",
         dataset_num_proc=4,
     )
