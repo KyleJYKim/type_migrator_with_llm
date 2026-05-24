@@ -1,6 +1,6 @@
 """
-Splits dataset.jsonl into train/val/test using module-root as the sub-project
-unit (since github org names like 'mbta' actually contain many independent repos).
+Splits dataset.jsonl into train/val/test, using module-root as the sub-project unit 
+since github org names like 'mbta', 'acalejos', or 'dashbit' actually contain many independent repos.
 """
 import json
 import random
