@@ -1,14 +1,8 @@
 """
-Evaluate the fine-tuned model on test.jsonl using executable type-checking.
-
-For each test entry:
-  1. Build the same prompt format as training
-  2. Generate the elixir_type completion
-  3. Write a temporary Elixir file with the original definition + generated type
-  4. Run the type checker on it
-  5. Record pass/fail
-
-Outputs results to runs/<run_name>/eval_results.jsonl
+Evaluate the fine-tuned model on test.jsonl using:
+  Tier A — exact match
+  Tier B — semantic distance (0/1/2/3) inspired by Mengesha (2026)
+  Tier C — executable typecheck via mix compile (auxiliary signal)
 """
 import argparse
 import json
@@ -16,22 +10,23 @@ import os
 import re
 import subprocess
 import tempfile
+from collections import Counter
 from pathlib import Path
 
 import torch
 from peft import PeftModel
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 
+from distance import semantic_distance
+
 
 def format_prompt(example):
-    """Same as training but without the completion."""
     type_block = ""
     if example.get("type"):
         if isinstance(example["type"], list):
             type_block = "\n".join(example["type"])
         else:
             type_block = str(example["type"])
-
     return (
         f"### Module: {example['module']}\n"
         f"### Types in scope:\n{type_block}\n\n"
@@ -41,9 +36,6 @@ def format_prompt(example):
 
 
 def parse_generated_type(generated_text):
-    """The model continues after '### Elixir type:\n'.
-    Extract everything up to <|endoftext|> or first blank line."""
-    # Remove EOT and anything after
     for marker in ["<|endoftext|>", "<|im_end|>", "\n###", "\n\n"]:
         idx = generated_text.find(marker)
         if idx > 0:
@@ -51,58 +43,81 @@ def parse_generated_type(generated_text):
     return generated_text.strip()
 
 
-def run_type_checker(definition, generated_type, module_name, type_block, elixir_bin):
-    """Build a minimal Elixir module and run the type checker on it.
-    Returns (pass: bool, output: str)."""
-    safe_module = re.sub(r"[^\w]", "_", module_name) + "_Eval"
+def build_mix_project(tmp_root, example, generated_type):
+    project_dir = Path(tmp_root)
+    (project_dir / "lib").mkdir(parents=True, exist_ok=True)
 
-    source = f"""defmodule {safe_module} do
+    module_name = example["module"]
+    safe_proj = re.sub(r"[^\w]", "_", module_name).lower()
+
+    type_block = ""
+    if example.get("type"):
+        type_block = "\n  ".join(example["type"]) if isinstance(example["type"], list) else str(example["type"])
+
+    lib_content = f"""defmodule {module_name} do
   {type_block}
 
   @assert_type_form {generated_type}
-  {definition}
+  {example["definition"]}
 end
 """
+    mix_content = f"""defmodule {safe_proj.title().replace('_', '')}.MixProject do
+  use Mix.Project
 
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".ex", delete=False) as f:
-        f.write(source)
-        path = f.name
+  def project do
+    [
+      app: :{safe_proj},
+      version: "0.1.0",
+      elixir: "~> 1.19.5",
+      deps: []
+    ]
+  end
+
+  def application, do: [extra_applications: [:logger]]
+end
+"""
+    (project_dir / "lib" / "eval.ex").write_text(lib_content)
+    (project_dir / "mix.exs").write_text(mix_content)
+
+
+def run_type_checker(tmp_root, elixir_bin):
+    """Returns one of: True (pass), False (typecheck warning), 'compile_error', 'timeout', 'error'."""
+    abs_elixir_bin = str(Path(elixir_bin).resolve())
+    env = os.environ.copy()
+    env["PATH"] = f"{abs_elixir_bin}:{env.get('PATH', '')}"
+    env["MIX_HOME"] = str(Path(tmp_root) / ".mix")
+    env["MIX_INSTALL_DIR"] = str(Path(tmp_root) / ".mix-install")
 
     try:
-        env = os.environ.copy()
-        env["PATH"] = f"{elixir_bin}:{env.get('PATH', '')}"
         result = subprocess.run(
-            ["elixir", path],
-            capture_output=True, text=True, timeout=30, env=env,
+            ["bash", "-c", f"PATH={abs_elixir_bin}:$PATH mix compile --force"],
+            cwd=tmp_root,
+            capture_output=True, text=True, timeout=60, env=env,
         )
-        # Heuristic: type checker emits "type warning found at" on failures
-        passed = "type warning found at" not in result.stderr and \
-                 "type warning found at" not in result.stdout
-        return passed, result.stdout + result.stderr
+        output = result.stdout + result.stderr
+
+        if "type warning found at" in output:
+            return False, output
+        if "** (CompileError)" in output or "** (SyntaxError)" in output:
+            return "compile_error", output
+        return result.returncode == 0, output
     except subprocess.TimeoutExpired:
-        return False, "TIMEOUT"
+        return "timeout", "TIMEOUT"
     except Exception as e:
-        return False, f"ERROR: {e}"
-    finally:
-        try:
-            os.unlink(path)
-        except OSError:
-            pass
+        return "error", f"ERROR: {e}"
 
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--adapter_dir", required=True,
-                    help="Path to checkpoint directory, e.g. runs/qwen7b_qlora_v1/checkpoint-20")
+    ap.add_argument("--adapter_dir", required=True)
     ap.add_argument("--base_model", default="Qwen/Qwen2.5-Coder-7B")
     ap.add_argument("--test_file", default="data/test.jsonl")
-    ap.add_argument("--out_file", default=None,
-                    help="Defaults to <adapter_dir>/eval_results.jsonl")
+    ap.add_argument("--out_file", default=None)
     ap.add_argument("--max_new_tokens", type=int, default=256)
-    ap.add_argument("--n_samples", type=int, default=0,
-                    help="If > 0, evaluate only the first N test entries")
-    ap.add_argument("--elixir_bin", default="",
-                    help="Path to custom elixir bin; empty means use system elixir")
+    ap.add_argument("--n_samples", type=int, default=0)
+    ap.add_argument("--elixir_bin", required=True)
+    ap.add_argument("--skip_typecheck", action="store_true",
+                    help="Skip the executable mix compile check (much faster)")
     args = ap.parse_args()
 
     out_file = args.out_file or Path(args.adapter_dir) / "eval_results.jsonl"
@@ -130,10 +145,14 @@ def main():
         test = [json.loads(l) for l in f if l.strip()]
     if args.n_samples > 0:
         test = test[: args.n_samples]
-    print(f"=== Evaluating {len(test)} entries ===")
+    n = len(test)
+    print(f"=== Evaluating {n} entries ===")
 
+    results = []
+    em_count = 0
     pass_count = 0
-    em_count = 0  # exact match against reference elixir_type
+    compile_error_count = 0
+    timeout_count = 0
 
     with open(out_file, "w") as fout:
         for i, ex in enumerate(test):
@@ -145,50 +164,88 @@ def main():
                     **inputs,
                     max_new_tokens=args.max_new_tokens,
                     do_sample=False,
-                    temperature=1.0,
-                    top_p=1.0,
                     pad_token_id=tok.eos_token_id,
                 )
             full = tok.decode(gen[0], skip_special_tokens=False)
-            after_prompt = full[len(tok.decode(inputs.input_ids[0], skip_special_tokens=False)):]
+            prompt_len = len(tok.decode(inputs.input_ids[0], skip_special_tokens=False))
+            after_prompt = full[prompt_len:]
             generated_type = parse_generated_type(after_prompt)
 
-            # Exact match
-            em = generated_type.strip() == (ex.get("elixir_type") or "").strip()
+            reference = ex.get("elixir_type") or ""
+
+            # Tier A — exact match
+            em = generated_type.strip() == reference.strip()
             if em:
                 em_count += 1
 
-            # Executable check
-            type_block = ""
-            if ex.get("type"):
-                type_block = "\n".join(ex["type"]) if isinstance(ex["type"], list) else str(ex["type"])
-            passed, output = run_type_checker(
-                ex["definition"], generated_type, ex["module"], type_block, args.elixir_bin
-            )
-            if passed:
+            # Tier B — semantic distance
+            distance, similarity, explanation = semantic_distance(generated_type, reference)
+
+            # Tier C — executable typecheck (optional)
+            if args.skip_typecheck:
+                passed, tc_output = None, ""
+            else:
+                with tempfile.TemporaryDirectory(prefix="eval_") as tmp_root:
+                    build_mix_project(tmp_root, ex, generated_type)
+                    passed, tc_output = run_type_checker(tmp_root, args.elixir_bin)
+
+            if passed == "compile_error":
+                compile_error_count += 1
+            elif passed in ("timeout", "error"):
+                timeout_count += 1
+            elif passed is True:
                 pass_count += 1
 
-            fout.write(json.dumps({
-                "module": ex["module"],
-                "function": ex["function"],
-                "arity": ex["arity"],
-                "project": ex["project"],
-                "reference_elixir_type": ex.get("elixir_type"),
-                "generated_elixir_type": generated_type,
-                "exact_match": em,
-                "type_check_pass": passed,
-                "type_check_output": output[:500],  # truncate for file size
-            }) + "\n")
+            entry_result = {
+                "module":                  ex["module"],
+                "function":                ex["function"],
+                "arity":                   ex["arity"],
+                "project":                 ex["project"],
+                "reference_elixir_type":   reference,
+                "generated_elixir_type":   generated_type,
+                "exact_match":             em,
+                "semantic_distance":       distance,
+                "semantic_similarity":     similarity,
+                "distance_reason":         explanation,
+                "type_check_pass":         passed,
+                "type_check_output":       tc_output[:500] if tc_output else "",
+            }
+            results.append(entry_result)
+            fout.write(json.dumps(entry_result) + "\n")
             fout.flush()
 
-            if (i + 1) % 50 == 0:
-                print(f"  [{i+1}/{len(test)}] EM: {em_count}, TypeCheck pass: {pass_count}")
+            if (i + 1) % 20 == 0:
+                print(f"  [{i+1}/{n}] EM: {em_count} ({100*em_count/(i+1):.1f}%), "
+                      f"D0+D1: {sum(1 for r in results if r['semantic_distance'] <= 1)} "
+                      f"({100*sum(1 for r in results if r['semantic_distance'] <= 1)/(i+1):.1f}%)")
+
+    # ----------------------------- Summary -----------------------------
+    d_counts = Counter(r["semantic_distance"] for r in results)
+    mpd = sum(r["semantic_distance"] for r in results) / n
+    mss = sum(r["semantic_similarity"] for r in results) / n
+    success_rate = 100 * (d_counts[0] + d_counts[1]) / n
+    verifiable = n - compile_error_count - timeout_count
 
     print(f"\n=== Final ===")
-    print(f"  Total:           {len(test)}")
-    print(f"  Exact match:     {em_count} ({100*em_count/len(test):.1f}%)")
-    print(f"  TypeCheck@1:     {pass_count} ({100*pass_count/len(test):.1f}%)")
-    print(f"  Results saved:   {out_file}")
+    print(f"  Total:                   {n}")
+    print(f"  Exact match:             {em_count} ({100*em_count/n:.1f}%)")
+    print()
+    print(f"  Distance 0 (perfect):    {d_counts[0]} ({100*d_counts[0]/n:.1f}%)")
+    print(f"  Distance 1 (good):       {d_counts[1]} ({100*d_counts[1]/n:.1f}%)")
+    print(f"  Distance 2 (partial):    {d_counts[2]} ({100*d_counts[2]/n:.1f}%)")
+    print(f"  Distance 3 (failed):     {d_counts[3]} ({100*d_counts[3]/n:.1f}%)")
+    print(f"  Mean Predicted Distance: {mpd:.3f}")
+    print(f"  Mean Similarity Score:   {mss:.3f}")
+    print(f"  Success Rate (D0+D1):    {success_rate:.1f}%")
+
+    if not args.skip_typecheck:
+        print()
+        print(f"  Compile errors:          {compile_error_count} (excluded)")
+        print(f"  Timeouts/errors:         {timeout_count} (excluded)")
+        print(f"  TypeCheck@1:             {pass_count}/{verifiable} "
+              f"({100*pass_count/max(verifiable,1):.1f}%)")
+
+    print(f"\n  Saved to: {out_file}")
 
 
 if __name__ == "__main__":
