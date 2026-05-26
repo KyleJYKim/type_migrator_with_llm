@@ -1,158 +1,305 @@
 """
 Semantic distance for Elixir set-theoretic types.
-Implements 0/1/2/3 buckets inspired by H.B.Mengesha form Ca'Foscari University of Venice (2026).
+Operates on the canonical (already-expanded) form produced by the type translator.
+
+All entries in our dataset are function types: (T, ... -> T).
+Distance is computed by comparing function arity, then recursively comparing
+input types position-by-position and return types.
+
+Inspired by H.B.Mengesha, Ca'Foscari University of Venice (2026).
 """
 import re
-import subprocess
-from functools import lru_cache
 
-# Elixir type hierarchy — adapted for set-theoretic types
-HIERARCHY = {
-    "term": [],                                    # depth 0
-    "any": ["term"],                               # depth 0 (alias)
-    "dynamic": ["term"],                           # depth 0
-    "number": ["term"],                            # depth 1
-    "integer": ["number"],                         # depth 2
-    "float": ["number"],                           # depth 2
-    "pos_integer": ["integer"],                    # depth 3
-    "non_neg_integer": ["integer"],                # depth 3
-    "neg_integer": ["integer"],                    # depth 3
-    "atom": ["term"],                              # depth 1
-    "boolean": ["atom"],                           # depth 2
-    "binary": ["term"],                            # depth 1
-    "list": ["term"],                              # depth 1
-    "non_empty_list": ["list"],                    # depth 2
-    "empty_list": ["list"],                        # depth 2
-    "tuple": ["term"],                             # depth 1
-    "map": ["term"],                               # depth 1
-    "pid": ["term"], "port": ["term"], "reference": ["term"],
-}
-
-# Pre-compute depths and ancestor sets
-def compute_depths():
-    depths = {}
-    def depth(t):
-        if t in depths: return depths[t]
-        parents = HIERARCHY.get(t, [])
-        d = 0 if not parents else 1 + max(depth(p) for p in parents)
-        depths[t] = d
-        return d
-    for t in HIERARCHY:
-        depth(t)
-    return depths
-
-DEPTHS = compute_depths()
-MAX_DEPTH = max(DEPTHS.values()) if DEPTHS else 1
-
-def ancestors(t):
-    """Set of all ancestors of t, including itself."""
-    seen = {t}
-    stack = [t]
-    while stack:
-        cur = stack.pop()
-        for p in HIERARCHY.get(cur, []):
-            if p not in seen:
-                seen.add(p)
-                stack.append(p)
-    return seen
-
-def hierarchy_similarity(a, b):
-    """Depth-weighted similarity for two atomic types in the hierarchy."""
-    if a == b: return 1.0
-    if a not in DEPTHS or b not in DEPTHS:
-        return 0.0  # unknown atomic type
-    common = ancestors(a) & ancestors(b)
-    if not common:
-        return 0.0
-    lca_depth = max(DEPTHS[c] for c in common)
-    da, db = DEPTHS[a], DEPTHS[b]
-    return (2 * lca_depth) / (da + db) if (da + db) > 0 else 0.0
+# ── Key types: the flat leaf vocabulary (no hierarchy among them) ──────────
+KEY_TYPES = frozenset({
+    "atom", "pid", "port", "reference",
+    "float", "integer",
+    "bitstring", "binary",
+    "tuple", "open_map", "fun",
+    "list", "empty_list", "non_empty_list",
+    "term", "none", "dynamic",
+})
 
 
-def normalise(type_str):
-    """Canonicalise an Elixir set-theoretic type string for comparison.
-    - 'or' and '|' both mean union
-    - 'empty_list()' and '[]' both mean empty list
-    - whitespace and parens normalised
-    """
-    s = type_str.strip()
+# ── Bracket-aware splitting ────────────────────────────────────────────────
+def top_level_split(s, sep):
+    """Split string on `sep` only at bracket depth 0."""
+    parts, depth, buf = [], 0, []
+    for ch in s:
+        if ch in '({[%':
+            depth += 1
+        elif ch in ')}]':
+            depth -= 1
+        if depth == 0 and _matches_sep(buf, ch, sep, s):
+            token = ''.join(buf).strip()
+            if sep == ' or ':
+                # The separator includes the space; we consumed 'o' as trigger
+                # Needs special handling — use regex approach instead
+                pass
+            parts.append(token)
+            buf = []
+        else:
+            buf.append(ch)
+    if buf:
+        parts.append(''.join(buf).strip())
+    return [p for p in parts if p]
+
+
+def _matches_sep(buf, ch, sep, full_str):
+    """Helper — not practical for multi-char seps. Use regex split instead."""
+    return ch == sep if len(sep) == 1 else False
+
+
+def split_top_level(s, sep):
+    """Split on multi-char separator (like ' or ', ', ') at bracket depth 0."""
+    parts = []
+    depth = 0
+    buf = []
+    i = 0
+    while i < len(s):
+        ch = s[i]
+        if ch in '({[':
+            depth += 1
+        elif ch in ')}]':
+            depth -= 1
+        # Check for separator at depth 0
+        if depth == 0 and s[i:i+len(sep)] == sep:
+            parts.append(''.join(buf).strip())
+            buf = []
+            i += len(sep)
+            continue
+        buf.append(ch)
+        i += 1
+    if buf:
+        parts.append(''.join(buf).strip())
+    return [p for p in parts if p]
+
+
+# ── Normalisation ──────────────────────────────────────────────────────────
+def normalise(s):
+    if not s:
+        return ""
+    s = s.strip()
     s = re.sub(r'\s+', ' ', s)
-    s = s.replace(' or ', ' | ')
     return s
 
 
-def shape_arity(type_str):
-    """Return a coarse shape descriptor for a type — used for distance 3 detection.
-    Returns one of: 'function', 'union', 'tuple', 'list', 'map', 'struct', 'atomic'."""
-    s = normalise(type_str)
-    if '->' in s: return 'function'
-    if '|' in s: return 'union'
-    if s.startswith('{') or 'tuple(' in s: return 'tuple'
-    if 'list(' in s or 'empty_list' in s or 'non_empty_list' in s: return 'list'
-    if s.startswith('%{') or s.startswith('%') or 'map(' in s: return 'map'
-    if s.startswith('%'): return 'struct'
+# ── Parse function type ───────────────────────────────────────────────────
+def parse_function(s):
+    """Parse '(T1, T2, ... -> Tout)' into ([inputs], output).
+    Returns None if not a function type."""
+    s = normalise(s)
+    if not s.startswith('(') or '->' not in s:
+        return None
+    # Strip outer parens
+    inner = s[1:]
+    if inner.endswith(')'):
+        inner = inner[:-1]
+    # Split on ' -> ' at top level
+    parts = split_top_level(inner, ' -> ')
+    if len(parts) != 2:
+        # Might have nested function types; take last ' -> ' at depth 0
+        arrow_parts = split_top_level(inner, ' -> ')
+        if len(arrow_parts) < 2:
+            return None
+        output = arrow_parts[-1]
+        inputs_str = ' -> '.join(arrow_parts[:-1])
+        parts = [inputs_str, output]
+
+    inputs_str, output_str = parts[0].strip(), parts[1].strip()
+    if not inputs_str:
+        return ([], output_str)
+    inputs = split_top_level(inputs_str, ', ')
+    return (inputs, output_str)
+
+
+# ── Parse union ────────────────────────────────────────────────────────────
+def parse_union(s):
+    """Split a type into union arms at the top level. Returns list of arms."""
+    arms = split_top_level(normalise(s), ' or ')
+    return arms if len(arms) > 1 else [normalise(s)]
+
+
+# ── Parse tuple ────────────────────────────────────────────────────────────
+def parse_tuple(s):
+    """Parse '{T1, T2, ...}' into list of element types. Returns None if not tuple."""
+    s = normalise(s)
+    if not s.startswith('{') or not s.endswith('}'):
+        return None
+    inner = s[1:-1]
+    return split_top_level(inner, ', ')
+
+
+# ── Shape categorisation ──────────────────────────────────────────────────
+def shape(s):
+    s = normalise(s)
+    if s.startswith('(') and '->' in s:
+        return 'function'
+    if s.startswith('{'):
+        return 'tuple'
+    if s.startswith('%{'):
+        return 'map'
+    if s.startswith('non_empty_list(') or s == 'empty_list()':
+        return 'list'
+    # Check for top-level union
+    arms = split_top_level(s, ' or ')
+    if len(arms) > 1:
+        return 'union'
+    if s.startswith(':'):
+        return 'atom_literal'
     return 'atomic'
 
 
-def function_arity(type_str):
-    """For function types like '(a, b, c -> d)' return input arity, or None."""
-    s = normalise(type_str)
-    m = re.match(r'\((.*?)\s*->\s*(.+)\)', s)
-    if not m: return None
-    inputs = m.group(1).strip()
-    if not inputs: return 0
-    # Count top-level commas (simplification; real impl should bracket-aware split)
-    return inputs.count(',') + 1
+# ── Recursive type similarity ─────────────────────────────────────────────
+def type_similarity(a, b):
+    """Compute similarity between two type strings, recursively.
+    Returns float in [0, 1]."""
+    a, b = normalise(a), normalise(b)
+
+    if a == b:
+        return 1.0
+
+    sa, sb = shape(a), shape(b)
+
+    # Shape mismatch — low but not zero if either is 'term' or 'dynamic'
+    if sa != sb:
+        if a in ('term()', 'dynamic()') or b in ('term()', 'dynamic()'):
+            return 0.2  # gradual/top type matches anything weakly
+        return 0.0
+
+    # ── Function types ──
+    if sa == 'function':
+        fa, fb = parse_function(a), parse_function(b)
+        if fa is None or fb is None:
+            return 0.0
+        inputs_a, out_a = fa
+        inputs_b, out_b = fb
+        # Arity mismatch → very low
+        if len(inputs_a) != len(inputs_b):
+            return 0.05
+        # Compare inputs position-by-position
+        if inputs_a:
+            input_sim = sum(type_similarity(ia, ib)
+                           for ia, ib in zip(inputs_a, inputs_b)) / len(inputs_a)
+        else:
+            input_sim = 1.0
+        output_sim = type_similarity(out_a, out_b)
+        # Weight output slightly more (it's what callers depend on)
+        return 0.4 * input_sim + 0.6 * output_sim
+
+    # ── Tuples ──
+    if sa == 'tuple':
+        ta, tb = parse_tuple(a), parse_tuple(b)
+        if ta is None or tb is None:
+            return 0.0
+        if len(ta) != len(tb):
+            return 0.1  # different arity tuple
+        if not ta:
+            return 1.0  # both empty tuples
+        return sum(type_similarity(ea, eb) for ea, eb in zip(ta, tb)) / len(ta)
+
+    # ── Unions ──
+    if sa == 'union':
+        arms_a = set(parse_union(a))
+        arms_b = set(parse_union(b))
+        if arms_a == arms_b:
+            return 1.0
+        # Greedy bipartite matching (like Mengesha's approach)
+        matched_sim = _greedy_match_similarity(list(arms_a), list(arms_b))
+        return matched_sim
+
+    # ── Maps ── (structural comparison is complex; fall back to token overlap)
+    if sa == 'map':
+        return _token_jaccard(a, b)
+
+    # ── Lists ──
+    if sa == 'list':
+        # Both are list-shaped; compare inner types if possible
+        inner_a = _extract_list_inner(a)
+        inner_b = _extract_list_inner(b)
+        if inner_a is not None and inner_b is not None:
+            return type_similarity(inner_a, inner_b)
+        return _token_jaccard(a, b)
+
+    # ── Atom literals ──
+    if sa == 'atom_literal':
+        return 1.0 if a == b else 0.0
+
+    # ── Atomic key types ──
+    # In the set-theoretic system, key types are flat — equal or not
+    a_base = re.sub(r'\(\)', '', a)
+    b_base = re.sub(r'\(\)', '', b)
+    return 1.0 if a_base == b_base else 0.0
 
 
-def extract_atomic_tokens(type_str):
-    """Extract all atomic type tokens from a type string for shallow similarity."""
-    return set(re.findall(r'\b(integer|float|number|atom|binary|boolean|pid|'
-                          r'port|reference|list|empty_list|non_empty_list|'
-                          r'tuple|map|term|any|dynamic|pos_integer|'
-                          r'non_neg_integer|neg_integer)\b\(?\)?', type_str))
+def _greedy_match_similarity(arms_a, arms_b):
+    """Greedy bipartite matching between union arms.
+    Match each arm in the smaller set to its best match in the larger set."""
+    if not arms_a or not arms_b:
+        return 0.0
+
+    # Compute pairwise similarities
+    sims = []
+    used_b = set()
+    for aa in arms_a:
+        best_sim, best_j = 0.0, -1
+        for j, bb in enumerate(arms_b):
+            if j not in used_b:
+                s = type_similarity(aa, bb)
+                if s > best_sim:
+                    best_sim, best_j = s, j
+        sims.append(best_sim)
+        if best_j >= 0:
+            used_b.add(best_j)
+
+    # Normalise by the size of the larger set (penalise missing/extra arms)
+    return sum(sims) / max(len(arms_a), len(arms_b))
 
 
+def _extract_list_inner(s):
+    """Extract the element type from non_empty_list(T, T') or empty_list()."""
+    m = re.match(r'non_empty_list\((.+),\s*(.+)\)$', s)
+    if m:
+        return m.group(1).strip()
+    if s == 'empty_list()':
+        return 'none()'  # empty list has no elements
+    return None
+
+
+def _token_jaccard(a, b):
+    """Fallback: extract all type tokens and compute Jaccard."""
+    pattern = r'\b(' + '|'.join(sorted(KEY_TYPES, key=len, reverse=True)) + r')\b'
+    ta = set(re.findall(pattern, a))
+    tb = set(re.findall(pattern, b))
+    ta.update(re.findall(r':\w+', a))  # atom literals
+    tb.update(re.findall(r':\w+', b))
+    if not ta and not tb:
+        return 0.5
+    inter = len(ta & tb)
+    union = len(ta | tb)
+    return inter / union if union > 0 else 0.0
+
+
+# ── Public API ─────────────────────────────────────────────────────────────
 def semantic_distance(predicted, reference):
-    """Map (predicted, reference) to discrete distance 0/1/2/3.
-    Returns (distance, similarity_score, explanation)."""
+    """Return (distance, similarity, reason)."""
     p = normalise(predicted)
     r = normalise(reference)
 
-    # Distance 0 — string equivalence after normalisation
+    if not p or not r:
+        return 3, 0.0, "empty type"
+
     if p == r:
         return 0, 1.0, "exact"
 
-    # Shape mismatch → distance 3
-    sp, sr = shape_arity(predicted), shape_arity(reference)
-    if sp != sr:
-        return 3, 0.1, f"shape mismatch: {sp} vs {sr}"
+    sim = type_similarity(p, r)
 
-    # Function with wrong arity → distance 3
-    if sp == 'function':
-        ap, ar = function_arity(predicted), function_arity(reference)
-        if ap is not None and ar is not None and ap != ar:
-            return 3, 0.1, f"function arity {ap} vs {ar}"
-
-    # Token-overlap measure
-    tp = extract_atomic_tokens(predicted)
-    tr = extract_atomic_tokens(reference)
-    if not tp or not tr:
-        return 2, 0.4, "no atomic tokens"
-    jacc = len(tp & tr) / len(tp | tr)
-
-    # Hierarchy-based similarity for each pair of tokens
-    sims = []
-    for a in tp:
-        best = max((hierarchy_similarity(a, b) for b in tr), default=0.0)
-        sims.append(best)
-    hier_sim = sum(sims) / len(sims) if sims else 0.0
-
-    combined = 0.4 * jacc + 0.6 * hier_sim
-
-    if combined >= 0.85:
-        return 1, combined, f"close ({combined:.2f})"
-    elif combined >= 0.4:
-        return 2, combined, f"partial ({combined:.2f})"
+    # Map continuous similarity to discrete distance
+    if sim >= 0.85:
+        return 0, sim, f"equivalent ({sim:.3f})"
+    elif sim >= 0.5:
+        return 1, sim, f"close ({sim:.3f})"
+    elif sim >= 0.25:
+        return 2, sim, f"partial ({sim:.3f})"
     else:
-        return 3, combined, f"distant ({combined:.2f})"
+        return 3, sim, f"distant ({sim:.3f})"
