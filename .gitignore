@@ -5,3 +5,5 @@ __pycache__/
 .venv/
 .env
 wandb/
+# 60MB raw input; tracks are generated from it and committed instead
+data/dataset.jsonl
