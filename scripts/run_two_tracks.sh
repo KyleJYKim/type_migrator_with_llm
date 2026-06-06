@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Train + evaluate both tracks of the gradual-types study.
+# Train both tracks of the gradual-types study, then evaluate BOTH adapters on
+# the SAME held-out test set for a fair comparison.
 # MUST run on a GPU compute node — train_sft.py requires CUDA.
 #
 # Usage:
@@ -13,22 +14,38 @@ CONFIG="${1:-configs/qwen7b_qlora.yaml}"
 ELIXIR_BIN="${2:-../elixir/bin}"
 TRACKS=(track1_no_gradual track2_both_pass)
 
+# The common held-out set = the full both_pass test split. It is a SUPERSET of
+# track1's test (track1 test is exactly its dynamic-free subset), so evaluating
+# both adapters here is apples-to-apples. compare_tracks.py then also slices the
+# results into the dynamic-free and with-dynamic subsets.
+COMMON_TEST="data/track2_both_pass/test.jsonl"
+
 # 1) (re)build the two-track datasets from the current dataset.jsonl
 python scripts/prepare_data.py 42
 
-# 2) train + evaluate each track on its own split
+# 2) train each track on its own split
 for t in "${TRACKS[@]}"; do
   echo "==================  TRAIN  ${t}  =================="
   python scripts/train_sft.py \
     --config "$CONFIG" \
     --data_dir "data/${t}" \
     --output_dir "runs/${t}"
+done
 
-  echo "==================  EVAL   ${t}  =================="
+# 3) evaluate BOTH adapters on the SAME common held-out set
+for t in "${TRACKS[@]}"; do
+  echo "==================  EVAL   ${t}  (common test)  =================="
   python scripts/evaluate.py \
     --adapter_dir "runs/${t}" \
-    --test_file "data/${t}/test.jsonl" \
+    --test_file "$COMMON_TEST" \
+    --out_file "runs/${t}/eval_on_common.jsonl" \
     --elixir_bin "$ELIXIR_BIN"
 done
 
-echo "Done. Adapters + eval_results.jsonl under runs/track1_no_gradual and runs/track2_both_pass."
+# 4) print the apples-to-apples comparison (overall + per subset)
+echo "==================  COMPARISON  =================="
+python scripts/compare_tracks.py \
+  runs/track1_no_gradual/eval_on_common.jsonl \
+  runs/track2_both_pass/eval_on_common.jsonl
+
+echo "Done. Per-adapter results: runs/*/eval_on_common.jsonl"
