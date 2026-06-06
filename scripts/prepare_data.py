@@ -24,7 +24,7 @@ from collections import defaultdict
 from pathlib import Path
 
 SEED = int(sys.argv[1]) if len(sys.argv) > 1 else 42
-DATASET = "../type_migrator/results/dataset.jsonl"
+DATASET = "data/dataset.jsonl"
 DATA_DIR = Path("data")
 
 # Length guards: drop pathological functions / annotations that would dominate

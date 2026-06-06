@@ -5,12 +5,12 @@
 # Usage:
 #   bash scripts/run_two_tracks.sh [CONFIG] [ELIXIR_BIN]
 #     CONFIG     default configs/qwen7b_qlora.yaml
-#     ELIXIR_BIN default ../type_migrator/elixir/bin  (custom typechecker for Tier C)
+#     ELIXIR_BIN default ../elixir/bin  (custom typechecker for Tier C)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 CONFIG="${1:-configs/qwen7b_qlora.yaml}"
-ELIXIR_BIN="${2:-../type_migrator/elixir/bin}"
+ELIXIR_BIN="${2:-../elixir/bin}"
 TRACKS=(track1_no_gradual track2_both_pass)
 
 # 1) (re)build the two-track datasets from the current dataset.jsonl
