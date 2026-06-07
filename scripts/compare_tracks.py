@@ -34,11 +34,20 @@ def metrics(rows):
     tcp = sum(1 for r in rows if r.get("type_check_pass") is True)
     # how often the model itself emitted dynamic() (precision signal)
     emit_dyn = sum(1 for r in rows if "dynamic()" in (r.get("generated_elixir_type") or ""))
+    # safe AND precise: typechecks WITHOUT resorting to the dynamic() escape hatch.
+    # This is the metric that actually measures "safer types"; plain TC% is
+    # inflated because any dynamic()-containing prediction typechecks trivially.
+    safe_prec = sum(
+        1 for r in rows
+        if r.get("type_check_pass") is True
+        and "dynamic()" not in (r.get("generated_elixir_type") or "")
+    )
     return {
         "N": n,
         "EM%": 100 * em / n,
         "succ%": 100 * succ / n,
         "TC%": 100 * tcp / n,
+        "safe&prec%": 100 * safe_prec / n,
         "emit_dyn%": 100 * emit_dyn / n,
     }
 
@@ -60,7 +69,7 @@ def main():
     labels = [Path(f).parent.name for f in files]
     data = {lab: load(f) for lab, f in zip(labels, files)}
 
-    cols = ["N", "EM%", "succ%", "TC%", "emit_dyn%"]
+    cols = ["N", "EM%", "succ%", "TC%", "safe&prec%", "emit_dyn%"]
     header = f"{'subset':14} {'adapter':22} " + " ".join(f"{c:>9}" for c in cols)
     for kind in ("overall", "dynamic-free", "with-dynamic"):
         print(header if kind == "overall" else "")
@@ -75,7 +84,8 @@ def main():
             print(f"{kind:14} {lab:22} {vals}")
 
     print("\nLegend: EM exact-match | succ semantic distance<=1 | "
-          "TC typecheck-accept | emit_dyn share of predictions containing dynamic()")
+          "TC typecheck-accept | safe&prec typecheck-accept WITHOUT dynamic() "
+          "(genuine safety) | emit_dyn share of predictions containing dynamic()")
 
 
 if __name__ == "__main__":
