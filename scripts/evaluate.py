@@ -115,10 +115,16 @@ def main():
     ap.add_argument("--out_file", default=None)
     ap.add_argument("--max_new_tokens", type=int, default=256)
     ap.add_argument("--n_samples", type=int, default=0)
-    ap.add_argument("--elixir_bin", required=True)
+    # Only needed for the in-process Tier C check; on the remote (generate +
+    # exact-match + semantic-distance) we pass --skip_typecheck and the
+    # executable typecheck is run separately on the local side.
+    ap.add_argument("--elixir_bin", default=None)
     ap.add_argument("--skip_typecheck", action="store_true",
                     help="Skip the executable mix compile check (much faster)")
     args = ap.parse_args()
+
+    if not args.skip_typecheck and not args.elixir_bin:
+        ap.error("--elixir_bin is required unless --skip_typecheck is given")
 
     out_file = args.out_file or Path(args.adapter_dir) / "eval_results.jsonl"
 
