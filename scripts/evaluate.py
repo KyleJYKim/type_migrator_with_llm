@@ -197,10 +197,11 @@ def main():
                 pass_count += 1
 
             entry_result = {
-                "module":                  ex["module"],
-                "function":                ex["function"],
-                "arity":                   ex["arity"],
-                "project":                 ex["project"],
+                # Carry the FULL source entry (file, definition, type, spec, line
+                # locators, reference elixir_type, ...) so this jsonl doubles as the
+                # predictions dataset for the local typecheck step: injecting
+                # generated_elixir_type back into the real project and recompiling.
+                **ex,
                 "reference_elixir_type":   reference,
                 "generated_elixir_type":   generated_type,
                 "exact_match":             em,
