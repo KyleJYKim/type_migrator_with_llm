@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Train both tracks of the gradual-types study, then evaluate BOTH adapters on
 # the SAME held-out test set for a fair comparison.
-# MUST run on a GPU compute node — train_sft.py requires CUDA.
+# MUST run on a GPU compute node (here: at lip6) — train_sft.py requires CUDA.
 #
 # Usage:
 #   bash scripts/run_two_tracks.sh [CONFIG] [ELIXIR_BIN]
@@ -14,13 +14,12 @@ CONFIG="${1:-configs/qwen7b_qlora.yaml}"
 ELIXIR_BIN="${2:-../elixir/bin}"
 TRACKS=(track1_no_gradual track2_both_pass)
 
-# The common held-out set = the full both_pass test split. It is a SUPERSET of
-# track1's test (track1 test is exactly its dynamic-free subset), so evaluating
-# both adapters here is apples-to-apples. compare_tracks.py then also slices the
-# results into the dynamic-free and with-dynamic subsets.
+# The common held-out set = the full both_pass test split. 
+# It is a superset of track1's test (track1 test is exactly its non-gradual subset).
+# Then, compare_tracks.py also slices the results into the non-gradual and full-pass subsets.
 COMMON_TEST="data/track2_both_pass/test.jsonl"
 
-# 1) (re)build the two-track datasets from the current dataset.jsonl
+# 1) build the two-track datasets from the current dataset.jsonl into train/val/test
 python scripts/prepare_data.py 42
 
 # 2) train each track on its own split
@@ -42,7 +41,7 @@ for t in "${TRACKS[@]}"; do
     --elixir_bin "$ELIXIR_BIN"
 done
 
-# 4) print the apples-to-apples comparison (overall + per subset)
+# 4) print the comparison (overall + per subset)
 echo "==================  COMPARISON  =================="
 python scripts/compare_tracks.py \
   runs/track1_no_gradual/eval_on_common.jsonl \
