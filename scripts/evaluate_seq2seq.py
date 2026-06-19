@@ -57,6 +57,23 @@ def main():
     model = AutoModelForSeq2SeqLM.from_pretrained(
         args.model_dir, torch_dtype=torch.bfloat16, trust_remote_code=args.trust_remote_code
     )
+
+    # codet5p-2b lacks decoder_start_token_id/pad_token_id in its config;
+    # generate() needs them. Mirror the values used at training time.
+    def _first_set(*vals):
+        for v in vals:
+            if v is not None:
+                return v
+        return None
+    c = model.config
+    if getattr(c, "decoder_start_token_id", None) is None:
+        c.decoder_start_token_id = _first_set(
+            getattr(c, "bos_token_id", None),
+            tok.bos_token_id, tok.pad_token_id, tok.eos_token_id,
+        )
+    if getattr(c, "pad_token_id", None) is None:
+        c.pad_token_id = _first_set(tok.pad_token_id, tok.eos_token_id)
+
     model.to("cuda" if torch.cuda.is_available() else "cpu")
     model.eval()
 

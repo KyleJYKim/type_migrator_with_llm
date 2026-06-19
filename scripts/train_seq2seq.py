@@ -86,6 +86,26 @@ def main():
         cfg["model_name_or_path"], trust_remote_code=trust
     )
 
+    # codet5p-2b (custom modeling code) ships without decoder_start_token_id /
+    # pad_token_id, which DataCollatorForSeq2Seq's shift_tokens_right and
+    # generate() both need. Derive them and set in the config so training
+    # (teacher forcing) and inference use the SAME decoder-start token.
+    def _first_set(*vals):
+        for v in vals:
+            if v is not None:
+                return v
+        return None
+
+    c = model.config
+    if getattr(c, "decoder_start_token_id", None) is None:
+        c.decoder_start_token_id = _first_set(
+            getattr(c, "bos_token_id", None),
+            tokenizer.bos_token_id, tokenizer.pad_token_id, tokenizer.eos_token_id,
+        )
+    if getattr(c, "pad_token_id", None) is None:
+        c.pad_token_id = _first_set(tokenizer.pad_token_id, tokenizer.eos_token_id)
+    print(f"decoder_start_token_id={c.decoder_start_token_id}, pad_token_id={c.pad_token_id}")
+
     # ---- data: tokenize prompt -> input_ids, elixir_type -> labels ----
     data_dir = Path(args.data_dir)
     raw = load_dataset(
