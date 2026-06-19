@@ -106,6 +106,16 @@ def main():
         c.pad_token_id = _first_set(tokenizer.pad_token_id, tokenizer.eos_token_id)
     print(f"decoder_start_token_id={c.decoder_start_token_id}, pad_token_id={c.pad_token_id}")
 
+    # transformers >=4.45 calls config._get_non_default_generation_parameters()
+    # during save_pretrained, which builds a default config via self.__class__().
+    # codet5p's custom config asserts on a no-arg init ("encoder and decoder config
+    # required"), crashing checkpoint saves. Bypass the check on the config class
+    # (it only warns about generation params; config.json still saves correctly).
+    try:
+        type(model.config)._get_non_default_generation_parameters = lambda self: {}
+    except Exception as e:
+        print(f"(note: could not patch generation-param check: {e})")
+
     # ---- data: tokenize prompt -> input_ids, elixir_type -> labels ----
     data_dir = Path(args.data_dir)
     raw = load_dataset(
