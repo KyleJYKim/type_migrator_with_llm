@@ -74,6 +74,14 @@ def main():
     if getattr(c, "pad_token_id", None) is None:
         c.pad_token_id = _first_set(tok.pad_token_id, tok.eos_token_id)
 
+    # generate() -> _prepare_generation_config() also calls
+    # config._get_non_default_generation_parameters() -> self.__class__(), which
+    # codet5p's custom config asserts on. Bypass it (same as in train_seq2seq.py).
+    try:
+        type(c)._get_non_default_generation_parameters = lambda self: {}
+    except Exception:
+        pass
+
     model.to("cuda" if torch.cuda.is_available() else "cpu")
     model.eval()
 
