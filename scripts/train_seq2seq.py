@@ -116,6 +116,8 @@ def main():
     except Exception as e:
         print(f"(note: could not patch generation-param check: {e})")
 
+    model.config.use_cache = False   # training (and gradient checkpointing) needs this off
+
     # ---- data: tokenize prompt -> input_ids, elixir_type -> labels ----
     data_dir = Path(args.data_dir)
     raw = load_dataset(
@@ -155,6 +157,8 @@ def main():
         weight_decay=tr["weight_decay"],
         bf16=tr["bf16"],
         optim=tr.get("optim", "adamw_torch"),
+        gradient_checkpointing=tr.get("gradient_checkpointing", False),
+        gradient_checkpointing_kwargs={"use_reentrant": False},
         seed=tr["seed"],
         eval_strategy="steps",
         eval_steps=tr["eval_steps"],

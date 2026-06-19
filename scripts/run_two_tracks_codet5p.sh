@@ -19,6 +19,9 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+# Reduce CUDA fragmentation (the "reserved but unallocated" OOM headroom).
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+
 CONFIG="${1:-configs/codet5p_2b.yaml}"
 TRACKS=(track1_no_gradual track2_both_pass)
 COMMON_TEST="data/track2_both_pass/test.jsonl"   # superset; sliced by compare_tracks.py

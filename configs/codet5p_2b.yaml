@@ -12,16 +12,17 @@ seq2seq:
   max_target_length: 256    # decoder: the Elixir type annotation
 
 training:
-  per_device_train_batch_size: 8
-  per_device_eval_batch_size: 8
-  gradient_accumulation_steps: 2     # effective batch 16 (matches the Qwen run)
+  per_device_train_batch_size: 4     # 8 OOMs at full FT; 4 halves activations
+  per_device_eval_batch_size: 4
+  gradient_accumulation_steps: 4     # effective batch 16 (matches the Qwen run)
   num_train_epochs: 3
   learning_rate: 0.00005             # 5e-5: standard for full FT of T5-family
   lr_scheduler_type: cosine
   warmup_ratio: 0.05
   weight_decay: 0.01
   bf16: true                         # mixed-precision autocast; params stay fp32
-  optim: adamw_torch
+  optim: paged_adamw_8bit            # 8-bit Adam state: ~12GB less than adamw_torch
+  gradient_checkpointing: false      # set true to trade compute for memory if still tight
   seed: 42
   eval_steps: 20
   save_steps: 20
