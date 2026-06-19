@@ -3,7 +3,7 @@ SFT (Supervised Fine-Tuning) training script for elixir_type prediction.
 Usage:
     python scripts/train_sft.py --config configs/qwen7b_qlora.yaml
     1. Load config from a YAML file.
-    2.Load the pre-trained LLM (in our case it'll be "Qwen2.5-Coder-0.5B") in 4-bit to save GPU memory.
+    2. Load the pre-trained LLM (Qwen2.5-Coder-7B) in 4-bit to save GPU memory.
     3. Attach LoRA adapters so only a tiny fraction of weights are trainable.
     4. Format training data into prompt/completion strings.
     5. Train for several epochs, evaluating on validation data periodically.

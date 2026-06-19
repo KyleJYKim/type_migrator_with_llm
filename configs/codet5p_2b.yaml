@@ -1,0 +1,32 @@
+# CodeT5+ 2B — encoder-decoder (seq2seq), FULL fine-tuning.
+# Largest CodeT5+ that fully fine-tunes on a single A100 80GB:
+#   fp32 params + grads + AdamW(m,v) ~= 16 bytes/param ~= 32 GB, leaving
+#   ~48 GB for activations / batch. (6B/16B would need ZeRO/offload.)
+# codet5p-2b ships custom modeling code -> trust_remote_code: true.
+model_name_or_path: Salesforce/codet5p-2b
+output_dir: runs/codet5p_2b
+trust_remote_code: true
+
+seq2seq:
+  max_source_length: 512    # encoder: Module + Types-in-scope + Definition (prompt)
+  max_target_length: 256    # decoder: the Elixir type annotation
+
+training:
+  per_device_train_batch_size: 8
+  per_device_eval_batch_size: 8
+  gradient_accumulation_steps: 2     # effective batch 16 (matches the Qwen run)
+  num_train_epochs: 3
+  learning_rate: 0.00005             # 5e-5: standard for full FT of T5-family
+  lr_scheduler_type: cosine
+  warmup_ratio: 0.05
+  weight_decay: 0.01
+  bf16: true                         # mixed-precision autocast; params stay fp32
+  optim: adamw_torch
+  seed: 42
+  eval_steps: 20
+  save_steps: 20
+  save_total_limit: 2
+  logging_steps: 5
+  report_to: none
+  load_best_model_at_end: true
+  metric_for_best_model: eval_loss

@@ -1,0 +1,30 @@
+# CodeT5+ 770M — pure encoder-decoder (standard T5 arch), FULL fine-tuning.
+# Clean fallback / fast smoke for the seq2seq pipeline (no custom modeling code).
+# Plenty of headroom on A100 80GB, so the batch is larger.
+model_name_or_path: Salesforce/codet5p-770m
+output_dir: runs/codet5p_770m
+trust_remote_code: false
+
+seq2seq:
+  max_source_length: 512
+  max_target_length: 256
+
+training:
+  per_device_train_batch_size: 16
+  per_device_eval_batch_size: 16
+  gradient_accumulation_steps: 1     # effective batch 16
+  num_train_epochs: 3
+  learning_rate: 0.0001              # 1e-4: small T5 tolerates a higher LR
+  lr_scheduler_type: cosine
+  warmup_ratio: 0.05
+  weight_decay: 0.01
+  bf16: true
+  optim: adamw_torch
+  seed: 42
+  eval_steps: 20
+  save_steps: 20
+  save_total_limit: 2
+  logging_steps: 5
+  report_to: none
+  load_best_model_at_end: true
+  metric_for_best_model: eval_loss
