@@ -128,14 +128,23 @@ def main():
         },
     )
 
+    eos = tokenizer.eos_token_id
+
     def preprocess(ex):
         model_inputs = tokenizer(
             build_prompt(ex), max_length=max_src, truncation=True
         )
-        labels = tokenizer(
+        lab = tokenizer(
             text_target=ex["elixir_type"], max_length=max_tgt, truncation=True
-        )
-        model_inputs["labels"] = labels["input_ids"]
+        )["input_ids"]
+        # Ensure the target ends with EOS so the model learns to STOP. codet5p's
+        # GPT2-style tokenizer does not auto-append eos (T5 would), which otherwise
+        # causes runaway ' and (...)' repetition until max_new_tokens at inference.
+        if eos is not None and (not lab or lab[-1] != eos):
+            if len(lab) >= max_tgt:
+                lab = lab[: max_tgt - 1]
+            lab = lab + [eos]
+        model_inputs["labels"] = lab
         return model_inputs
 
     ds = raw.map(preprocess, remove_columns=raw["train"].column_names)
