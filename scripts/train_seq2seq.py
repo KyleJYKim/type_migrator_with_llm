@@ -178,7 +178,7 @@ def main():
         report_to=tr["report_to"],
         load_best_model_at_end=tr["load_best_model_at_end"],
         metric_for_best_model=tr["metric_for_best_model"],
-        predict_with_generate=False,   # generation-based eval is done in evaluate_seq2seq.py
+        predict_with_generate=False,   # generation is done in generate_seq2seq.py
     )
 
     # transformers >=4.46 renamed Trainer's `tokenizer` arg to `processing_class`

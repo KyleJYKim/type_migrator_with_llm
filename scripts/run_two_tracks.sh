@@ -1,17 +1,15 @@
 #!/usr/bin/env bash
-# Train both tracks of the gradual-types study, then evaluate BOTH adapters on
-# the SAME held-out test set for a fair comparison.
+# Train both tracks of the gradual-types study, then generate predictions for
+# BOTH adapters on the SAME held-out test set for a fair comparison.
 # MUST run on a GPU compute node (here: at lip6) — train_sft.py requires CUDA.
 #
 # Usage:
-#   bash scripts/run_two_tracks.sh [CONFIG] [ELIXIR_BIN]
-#     CONFIG     default configs/qwen7b_qlora.yaml
-#     ELIXIR_BIN default ../elixir/bin  (custom typechecker for Tier C)
+#   bash scripts/run_two_tracks.sh [CONFIG]
+#     CONFIG default configs/qwen7b_qlora.yaml
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 CONFIG="${1:-configs/qwen7b_qlora.yaml}"
-ELIXIR_BIN="${2:-../elixir/bin}"
 TRACKS=(track1_no_gradual track2_both_pass)
 
 # The common held-out set = the full both_pass test split. 
@@ -31,14 +29,13 @@ for t in "${TRACKS[@]}"; do
     --output_dir "runs/${t}"
 done
 
-# 3) evaluate BOTH adapters on the SAME common held-out set
+# 3) generate predictions for BOTH adapters on the SAME common held-out set
 for t in "${TRACKS[@]}"; do
-  echo "==================  EVAL   ${t}  (common test)  =================="
-  python scripts/evaluate.py \
+  echo "==================  GENERATE   ${t}  (common test)  =================="
+  python scripts/generate.py \
     --adapter_dir "runs/${t}" \
     --test_file "$COMMON_TEST" \
-    --out_file "runs/${t}/eval_on_common.jsonl" \
-    --elixir_bin "$ELIXIR_BIN"
+    --out_file "runs/${t}/eval_on_common.jsonl"
 done
 
 # 4) print the comparison (overall + per subset)

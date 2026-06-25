@@ -1,35 +1,25 @@
 """
-Evaluate a fine-tuned seq2seq model (CodeT5+) on a held-out test set.
-
-Encoder-decoder counterpart of evaluate.py. Produces the SAME output schema
-(eval_on_common.jsonl with elixir_type / generated_elixir_type /
-exact_match / type_check_pass / ...), so compare_tracks.py
-and the local extrinsic typecheck (type_migrator `mix eval_predictions`) work
-unchanged across the Qwen and CodeT5+ runs.
-
-  Tier A — exact match
-  Tier C — executable typecheck (optional; --skip_typecheck to defer to the
-           real-project injection step run locally)
-(Distance is scored separately by the set-theoretic evaluator.)
+Generate type predictions with a fine-tuned seq2seq model (CodeT5+) on a held-out
+test set. Encoder-decoder counterpart of generate.py: produces the SAME predictions
+dataset schema (elixir_type / generated_elixir_type / reference_over_budget / ...),
+so the downstream steps work unchanged across the Qwen and CodeT5+ runs. This script
+only predicts; scoring (typecheck, set-theoretic distance) is done separately.
 
 Usage:
-    python scripts/evaluate_seq2seq.py \\
+    python scripts/generate_seq2seq.py \\
         --model_dir runs/codet5p_track1_no_gradual \\
         --test_file data/track2_both_pass/test.jsonl \\
-        --out_file runs/codet5p_track1_no_gradual/eval_on_common.jsonl \\
-        --skip_typecheck
+        --out_file runs/codet5p_track1_no_gradual/predictions.jsonl
 """
 import argparse
 import json
-import tempfile
-from collections import Counter
 from pathlib import Path
 
 import torch
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 
-# Reuse the identical prompt + typecheck harness from the causal-LM evaluator.
-from evaluate import format_prompt, parse_generated_type, build_mix_project, run_type_checker
+# Reuse the identical prompt + parsing from the causal-LM generator.
+from generate import format_prompt, parse_generated_type
 
 
 def main():
@@ -41,15 +31,9 @@ def main():
     ap.add_argument("--n_samples", type=int, default=0)
     ap.add_argument("--trust_remote_code", action="store_true",
                     help="needed for codet5p-2b and larger (custom modeling code)")
-    ap.add_argument("--elixir_bin", default=None)
-    ap.add_argument("--skip_typecheck", action="store_true",
-                    help="skip in-process mix compile (defer to local injection step)")
     args = ap.parse_args()
 
-    if not args.skip_typecheck and not args.elixir_bin:
-        ap.error("--elixir_bin is required unless --skip_typecheck is given")
-
-    out_file = args.out_file or Path(args.model_dir) / "eval_results.jsonl"
+    out_file = args.out_file or Path(args.model_dir) / "predictions.jsonl"
 
     print(f"=== Loading seq2seq model: {args.model_dir} ===")
     tok = AutoTokenizer.from_pretrained(args.model_dir, trust_remote_code=args.trust_remote_code)
@@ -89,10 +73,9 @@ def main():
     if args.n_samples > 0:
         test = test[: args.n_samples]
     n = len(test)
-    print(f"=== Evaluating {n} entries ===")
+    print(f"=== Generating predictions for {n} entries ===")
 
-    results = []
-    em_count = pass_count = compile_error_count = timeout_count = 0
+    over_budget_count = 0
 
     with open(out_file, "w") as fout:
         for i, ex in enumerate(test):
@@ -112,48 +95,27 @@ def main():
             generated_type = parse_generated_type(decoded)
 
             reference = ex.get("elixir_type") or ""
-            em = generated_type.strip() == reference.strip()
-            em_count += int(em)
+            ref_token_len = len(tok(reference).input_ids)
+            reference_over_budget = ref_token_len > args.max_new_tokens
+            if reference_over_budget:
+                over_budget_count += 1
 
-            if args.skip_typecheck:
-                passed, tc_output = None, ""
-            else:
-                with tempfile.TemporaryDirectory(prefix="eval_") as tmp_root:
-                    build_mix_project(tmp_root, ex, generated_type)
-                    passed, tc_output = run_type_checker(tmp_root, args.elixir_bin)
-
-            if passed == "compile_error":
-                compile_error_count += 1
-            elif passed in ("timeout", "error"):
-                timeout_count += 1
-            elif passed is True:
-                pass_count += 1
-
-            entry_result = {
+            record = {
                 **ex,
                 "generated_elixir_type": generated_type,
-                "exact_match": em,
-                "type_check_pass": passed,
-                "type_check_output": tc_output[:500] if tc_output else "",
+                "reference_token_len":   ref_token_len,
+                "reference_over_budget": reference_over_budget,
             }
-            results.append(entry_result)
-            fout.write(json.dumps(entry_result) + "\n")
+            fout.write(json.dumps(record) + "\n")
             fout.flush()
 
             if (i + 1) % 20 == 0:
-                print(f"  [{i+1}/{n}] EM: {em_count} ({100*em_count/(i+1):.1f}%)")
+                print(f"  [{i+1}/{n}] generated")
 
-    verifiable = n - compile_error_count - timeout_count
-
-    print(f"\n=== Final ===")
-    print(f"  Total:                   {n}")
-    print(f"  Exact match:             {em_count} ({100*em_count/n:.1f}%)")
-    if not args.skip_typecheck:
-        print(f"  Compile errors:          {compile_error_count} (excluded)")
-        print(f"  Timeouts/errors:         {timeout_count} (excluded)")
-        print(f"  TypeCheck@1:             {pass_count}/{verifiable} "
-              f"({100*pass_count/max(verifiable,1):.1f}%)")
-    print(f"\n  Saved to: {out_file}")
+    print(f"\n=== Done ===")
+    print(f"  Total:                              {n}")
+    print(f"  Over budget (ref > {args.max_new_tokens} tok): {over_budget_count}")
+    print(f"  Saved to: {out_file}")
 
 
 if __name__ == "__main__":

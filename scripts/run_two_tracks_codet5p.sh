@@ -13,9 +13,9 @@
 #   srun --pty bash
 #   bash scripts/run_two_tracks_codet5p.sh [CONFIG]
 #
-# Extrinsic typecheck (the paper's TC%/S&P% numbers) is run SEPARATELY and
-# locally afterwards, the same way as for Qwen: inject generated_elixir_type
-# from each eval_on_common.jsonl into the real project and recompile.
+# The typecheck (the paper's TC%/S&P% numbers) is run SEPARATELY and locally
+# afterwards, the same way as for Qwen: inject generated_elixir_type from each
+# eval_on_common.jsonl into the real project and recompile.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -41,24 +41,23 @@ done
 
 # 2) generate predictions for BOTH on the SAME common held-out set
 for t in "${TRACKS[@]}"; do
-  echo "==================  EVAL   codet5p  ${t}  (common test)  =================="
-  python scripts/evaluate_seq2seq.py \
+  echo "==================  GENERATE   codet5p  ${t}  (common test)  =================="
+  python scripts/generate_seq2seq.py \
     --model_dir "runs/codet5p_${t}" \
     --test_file "$COMMON_TEST" \
     --out_file "runs/codet5p_${t}/eval_on_common.jsonl" \
-    $TRUST \
-    --skip_typecheck
+    $TRUST
 done
 
-# 3) intrinsic comparison (exact-match + semantic distance).
+# 3) comparison (exact-match now; TC%/S&P% filled later).
 # NOTE: TC%/S&P% columns will read 0 here because type_check_pass is still null;
-# they are filled by the local extrinsic typecheck step before final comparison.
-echo "==================  COMPARISON (intrinsic)  =================="
+# they are filled by the separate typecheck step before final comparison.
+echo "==================  COMPARISON  =================="
 python scripts/compare_tracks.py \
   runs/codet5p_track1_no_gradual/eval_on_common.jsonl \
   runs/codet5p_track2_both_pass/eval_on_common.jsonl
 
 echo
 echo "Predictions written to runs/codet5p_*/eval_on_common.jsonl"
-echo "Next (locally): run the extrinsic typecheck on those two files to fill"
+echo "Next (locally): run the typecheck on those two files to fill"
 echo "type_check_pass, then re-run compare_tracks.py for TC% / S&P% / emit-dyn%."

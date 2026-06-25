@@ -1,15 +1,16 @@
 """
 Apples-to-apples comparison of two adapters evaluated on the SAME common test set.
 
-Each input is an eval_on_common.jsonl produced by evaluate.py (both adapters run
-on data/track2_both_pass/test.jsonl, the full held-out set). We report metrics
-overall and split by whether the *reference* target contains dynamic():
+Each input is an eval_on_common.jsonl produced by generate.py (both adapters run
+on data/track2_both_pass/test.jsonl, the full held-out set), enriched with
+type_check_pass by the separate typecheck step. We report metrics overall and
+split by whether the *reference* target contains dynamic():
 
   overall       — the whole held-out set
   dynamic-free  — targets a precise (no-dynamic) annotation  (= track1's test)
   with-dynamic  — targets a gradual annotation
 
-Metrics: exact-match %, semantic success % (distance 0 or 1), typecheck-pass %.
+Metrics: exact-match %, typecheck-pass %, safe&precise %, emit-dynamic %.
 
 Usage:
   python scripts/compare_tracks.py runs/track1_no_gradual/eval_on_common.jsonl \\
@@ -29,7 +30,12 @@ def metrics(rows):
     n = len(rows)
     if n == 0:
         return None
-    em = sum(1 for r in rows if r.get("exact_match"))
+    # EM computed on the fly from the prediction vs the reference (elixir_type),
+    # since the generation step no longer writes an exact_match field.
+    em = sum(
+        1 for r in rows
+        if (r.get("generated_elixir_type") or "").strip() == (r.get("elixir_type") or "").strip()
+    )
     tcp = sum(1 for r in rows if r.get("type_check_pass") is True)
     # how often the model itself emitted dynamic() (precision signal)
     emit_dyn = sum(1 for r in rows if "dynamic()" in (r.get("generated_elixir_type") or ""))
