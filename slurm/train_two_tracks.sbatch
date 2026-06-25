@@ -1,4 +1,3 @@
-cat > slurm/train_two_tracks.sbatch << 'SBATCH'
 #!/bin/bash
 #SBATCH --job-name=train-both-tracks
 #SBATCH --qos=normal
