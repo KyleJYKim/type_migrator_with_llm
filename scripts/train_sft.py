@@ -144,6 +144,19 @@ def main():
         },
     )
     ds = raw.map(format_prompt, remove_columns=raw["train"].column_names)
+
+    # Drop examples whose tokenized text exceeds max_seq_length. Under packing an
+    # over-length example is not cleanly dropped: it is shredded across many
+    # max_seq_length blocks (or truncated, losing its trailing EOS), which teaches
+    # the model to emit non-terminating type fragments. The worst offenders are the
+    # translator's over-expanded structs (e.g. Regex.replace/4, ~250 KiB). Filtering
+    # keeps every retained example as a single block with its EOS intact.
+    max_seq = cfg["training"]["max_seq_length"]
+    before = {k: len(ds[k]) for k in ds}
+    ds = ds.filter(lambda ex: len(tokenizer(ex["text"]).input_ids) <= max_seq)
+    dropped = {k: before[k] - len(ds[k]) for k in ds}
+    print(f"Dropped over-length (> {max_seq} tok) examples: {dropped}")
+
     print(f"Train: {len(ds['train'])}, Val: {len(ds['validation'])}")
     print(f"Sample text[0]:\n{ds['train'][0]['text'][:600]}")
 

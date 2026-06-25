@@ -2,7 +2,7 @@
 Evaluate a fine-tuned seq2seq model (CodeT5+) on a held-out test set.
 
 Encoder-decoder counterpart of evaluate.py. Produces the SAME output schema
-(eval_on_common.jsonl with reference_elixir_type / generated_elixir_type /
+(eval_on_common.jsonl with elixir_type / generated_elixir_type /
 exact_match / semantic_distance / type_check_pass / ...), so compare_tracks.py
 and the local extrinsic typecheck (type_migrator `mix eval_predictions`) work
 unchanged across the Qwen and CodeT5+ runs.
@@ -134,7 +134,6 @@ def main():
 
             entry_result = {
                 **ex,
-                "reference_elixir_type": reference,
                 "generated_elixir_type": generated_type,
                 "exact_match": em,
                 "semantic_distance": distance,

@@ -55,7 +55,7 @@ def metrics(rows):
 def subset(rows, kind):
     if kind == "overall":
         return rows
-    has = lambda r: "dynamic()" in (r.get("reference_elixir_type") or "")
+    has = lambda r: "dynamic()" in (r.get("elixir_type") or "")
     return [r for r in rows if (has(r) if kind == "with-dynamic" else not has(r))]
 
 

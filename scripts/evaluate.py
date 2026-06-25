@@ -113,7 +113,10 @@ def main():
     ap.add_argument("--base_model", default="Qwen/Qwen2.5-Coder-7B")
     ap.add_argument("--test_file", default="data/test.jsonl")
     ap.add_argument("--out_file", default=None)
-    ap.add_argument("--max_new_tokens", type=int, default=256)
+    # Generation budget. Qwen trains at max_seq_length=1024 (prompt+completion), so it
+    # can emit types well past the old 256 cap; 512 covers long-but-reasonable types
+    # without inviting runaway greedy generation. Override per-run as needed.
+    ap.add_argument("--max_new_tokens", type=int, default=512)
     ap.add_argument("--n_samples", type=int, default=0)
     # Only needed for the in-process Tier C check; on the remote (generate +
     # exact-match + semantic-distance) we pass --skip_typecheck and the
@@ -159,6 +162,7 @@ def main():
     pass_count = 0
     compile_error_count = 0
     timeout_count = 0
+    over_budget_count = 0
 
     with open(out_file, "w") as fout:
         for i, ex in enumerate(test):
@@ -178,6 +182,13 @@ def main():
             generated_type = parse_generated_type(after_prompt)
 
             reference = ex.get("elixir_type") or ""
+            # Reproducibility bucket: a reference longer than the generation budget
+            # cannot be emitted in full by any model, so it is bucketed (not dropped)
+            # and reported separately rather than silently depressing the pass rate.
+            ref_token_len = len(tok(reference).input_ids)
+            reference_over_budget = ref_token_len > args.max_new_tokens
+            if reference_over_budget:
+                over_budget_count += 1
 
             # Tier A — exact match
             em = generated_type.strip() == reference.strip()
@@ -204,12 +215,14 @@ def main():
 
             entry_result = {
                 # Carry the FULL source entry (file, definition, type, spec, line
-                # locators, reference elixir_type, ...) so this jsonl doubles as the
+                # locators, elixir_type, ...) so this jsonl doubles as the
                 # predictions dataset for the local typecheck step: injecting
                 # generated_elixir_type back into the real project and recompiling.
+                # The reference type is the entry's own elixir_type (carried by **ex).
                 **ex,
-                "reference_elixir_type":   reference,
                 "generated_elixir_type":   generated_type,
+                "reference_token_len":     ref_token_len,
+                "reference_over_budget":   reference_over_budget,
                 "exact_match":             em,
                 "semantic_distance":       distance,
                 "semantic_similarity":     similarity,
@@ -251,6 +264,25 @@ def main():
         print(f"  Timeouts/errors:         {timeout_count} (excluded)")
         print(f"  TypeCheck@1:             {pass_count}/{verifiable} "
               f"({100*pass_count/max(verifiable,1):.1f}%)")
+
+    # Reproducible subset: exclude references that exceed the generation budget
+    # (unreproducible by construction) and report the rates with them bucketed out.
+    repro = [r for r in results if not r["reference_over_budget"]]
+    nb = len(repro)
+    print()
+    print(f"  Unreproducible (ref > {args.max_new_tokens} tok): {over_budget_count} (bucketed)")
+    if nb and nb != n:
+        em_b = sum(1 for r in repro if r["exact_match"])
+        dc_b = Counter(r["semantic_distance"] for r in repro)
+        sr_b = 100 * (dc_b[0] + dc_b[1]) / nb
+        print(f"  -- excluding unreproducible ({nb} entries) --")
+        print(f"     Exact match:          {em_b} ({100*em_b/nb:.1f}%)")
+        print(f"     Success Rate (D0+D1): {sr_b:.1f}%")
+        if not args.skip_typecheck:
+            verif_b = sum(1 for r in repro if r["type_check_pass"] in (True, False))
+            pass_b = sum(1 for r in repro if r["type_check_pass"] is True)
+            print(f"     TypeCheck@1:          {pass_b}/{verif_b} "
+                  f"({100*pass_b/max(verif_b,1):.1f}%)")
 
     print(f"\n  Saved to: {out_file}")
 
