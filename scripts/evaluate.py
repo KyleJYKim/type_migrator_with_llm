@@ -1,8 +1,8 @@
 """
 Evaluate the fine-tuned model on test.jsonl using:
   Tier A — exact match
-  Tier B — semantic distance (0/1/2/3) inspired by Mengesha (2026)
   Tier C — executable typecheck via mix compile (auxiliary signal)
+(Distance is scored separately by the set-theoretic evaluator.)
 """
 import argparse
 import json
@@ -10,14 +10,11 @@ import os
 import re
 import subprocess
 import tempfile
-from collections import Counter
 from pathlib import Path
 
 import torch
 from peft import PeftModel
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
-
-from distance import semantic_distance
 
 
 def format_prompt(example):
@@ -114,9 +111,9 @@ def main():
     ap.add_argument("--test_file", default="data/test.jsonl")
     ap.add_argument("--out_file", default=None)
     # Generation budget. Qwen trains at max_seq_length=1024 (prompt+completion), so it
-    # can emit types well past the old 256 cap; 512 covers long-but-reasonable types
+    # can emit types well past the old 256 cap; 1024 covers long-but-reasonable types
     # without inviting runaway greedy generation. Override per-run as needed.
-    ap.add_argument("--max_new_tokens", type=int, default=512)
+    ap.add_argument("--max_new_tokens", type=int, default=1024)
     ap.add_argument("--n_samples", type=int, default=0)
     # Only needed for the in-process Tier C check; on the remote (generate +
     # exact-match + semantic-distance) we pass --skip_typecheck and the
@@ -195,9 +192,6 @@ def main():
             if em:
                 em_count += 1
 
-            # Tier B — semantic distance
-            distance, similarity, explanation = semantic_distance(generated_type, reference)
-
             # Tier C — executable typecheck (optional)
             if args.skip_typecheck:
                 passed, tc_output = None, ""
@@ -224,9 +218,6 @@ def main():
                 "reference_token_len":     ref_token_len,
                 "reference_over_budget":   reference_over_budget,
                 "exact_match":             em,
-                "semantic_distance":       distance,
-                "semantic_similarity":     similarity,
-                "distance_reason":         explanation,
                 "type_check_pass":         passed,
                 "type_check_output":       tc_output[:500] if tc_output else "",
             }
@@ -235,28 +226,14 @@ def main():
             fout.flush()
 
             if (i + 1) % 20 == 0:
-                print(f"  [{i+1}/{n}] EM: {em_count} ({100*em_count/(i+1):.1f}%), "
-                      f"D0+D1: {sum(1 for r in results if r['semantic_distance'] <= 1)} "
-                      f"({100*sum(1 for r in results if r['semantic_distance'] <= 1)/(i+1):.1f}%)")
+                print(f"  [{i+1}/{n}] EM: {em_count} ({100*em_count/(i+1):.1f}%)")
 
     # ----------------------------- Summary -----------------------------
-    d_counts = Counter(r["semantic_distance"] for r in results)
-    mpd = sum(r["semantic_distance"] for r in results) / n
-    mss = sum(r["semantic_similarity"] for r in results) / n
-    success_rate = 100 * (d_counts[0] + d_counts[1]) / n
     verifiable = n - compile_error_count - timeout_count
 
     print(f"\n=== Final ===")
     print(f"  Total:                   {n}")
     print(f"  Exact match:             {em_count} ({100*em_count/n:.1f}%)")
-    print()
-    print(f"  Distance 0 (perfect):    {d_counts[0]} ({100*d_counts[0]/n:.1f}%)")
-    print(f"  Distance 1 (good):       {d_counts[1]} ({100*d_counts[1]/n:.1f}%)")
-    print(f"  Distance 2 (partial):    {d_counts[2]} ({100*d_counts[2]/n:.1f}%)")
-    print(f"  Distance 3 (failed):     {d_counts[3]} ({100*d_counts[3]/n:.1f}%)")
-    print(f"  Mean Predicted Distance: {mpd:.3f}")
-    print(f"  Mean Similarity Score:   {mss:.3f}")
-    print(f"  Success Rate (D0+D1):    {success_rate:.1f}%")
 
     if not args.skip_typecheck:
         print()
@@ -273,11 +250,8 @@ def main():
     print(f"  Unreproducible (ref > {args.max_new_tokens} tok): {over_budget_count} (bucketed)")
     if nb and nb != n:
         em_b = sum(1 for r in repro if r["exact_match"])
-        dc_b = Counter(r["semantic_distance"] for r in repro)
-        sr_b = 100 * (dc_b[0] + dc_b[1]) / nb
         print(f"  -- excluding unreproducible ({nb} entries) --")
         print(f"     Exact match:          {em_b} ({100*em_b/nb:.1f}%)")
-        print(f"     Success Rate (D0+D1): {sr_b:.1f}%")
         if not args.skip_typecheck:
             verif_b = sum(1 for r in repro if r["type_check_pass"] in (True, False))
             pass_b = sum(1 for r in repro if r["type_check_pass"] is True)

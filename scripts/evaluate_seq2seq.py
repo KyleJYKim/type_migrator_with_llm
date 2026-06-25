@@ -3,14 +3,14 @@ Evaluate a fine-tuned seq2seq model (CodeT5+) on a held-out test set.
 
 Encoder-decoder counterpart of evaluate.py. Produces the SAME output schema
 (eval_on_common.jsonl with elixir_type / generated_elixir_type /
-exact_match / semantic_distance / type_check_pass / ...), so compare_tracks.py
+exact_match / type_check_pass / ...), so compare_tracks.py
 and the local extrinsic typecheck (type_migrator `mix eval_predictions`) work
 unchanged across the Qwen and CodeT5+ runs.
 
   Tier A — exact match
-  Tier B — semantic distance (0/1/2/3), via distance.py
   Tier C — executable typecheck (optional; --skip_typecheck to defer to the
            real-project injection step run locally)
+(Distance is scored separately by the set-theoretic evaluator.)
 
 Usage:
     python scripts/evaluate_seq2seq.py \\
@@ -28,7 +28,6 @@ from pathlib import Path
 import torch
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 
-from distance import semantic_distance
 # Reuse the identical prompt + typecheck harness from the causal-LM evaluator.
 from evaluate import format_prompt, parse_generated_type, build_mix_project, run_type_checker
 
@@ -116,8 +115,6 @@ def main():
             em = generated_type.strip() == reference.strip()
             em_count += int(em)
 
-            distance, similarity, explanation = semantic_distance(generated_type, reference)
-
             if args.skip_typecheck:
                 passed, tc_output = None, ""
             else:
@@ -136,9 +133,6 @@ def main():
                 **ex,
                 "generated_elixir_type": generated_type,
                 "exact_match": em,
-                "semantic_distance": distance,
-                "semantic_similarity": similarity,
-                "distance_reason": explanation,
                 "type_check_pass": passed,
                 "type_check_output": tc_output[:500] if tc_output else "",
             }
@@ -147,25 +141,13 @@ def main():
             fout.flush()
 
             if (i + 1) % 20 == 0:
-                d01 = sum(1 for r in results if r["semantic_distance"] <= 1)
-                print(f"  [{i+1}/{n}] EM: {em_count} ({100*em_count/(i+1):.1f}%), "
-                      f"D0+D1: {d01} ({100*d01/(i+1):.1f}%)")
+                print(f"  [{i+1}/{n}] EM: {em_count} ({100*em_count/(i+1):.1f}%)")
 
-    d_counts = Counter(r["semantic_distance"] for r in results)
-    mpd = sum(r["semantic_distance"] for r in results) / n
-    mss = sum(r["semantic_similarity"] for r in results) / n
-    success_rate = 100 * (d_counts[0] + d_counts[1]) / n
     verifiable = n - compile_error_count - timeout_count
 
     print(f"\n=== Final ===")
     print(f"  Total:                   {n}")
     print(f"  Exact match:             {em_count} ({100*em_count/n:.1f}%)")
-    print(f"  Distance 0 (perfect):    {d_counts[0]} ({100*d_counts[0]/n:.1f}%)")
-    print(f"  Distance 1 (good):       {d_counts[1]} ({100*d_counts[1]/n:.1f}%)")
-    print(f"  Distance 2 (partial):    {d_counts[2]} ({100*d_counts[2]/n:.1f}%)")
-    print(f"  Distance 3 (failed):     {d_counts[3]} ({100*d_counts[3]/n:.1f}%)")
-    print(f"  Mean Predicted Distance: {mpd:.3f}")
-    print(f"  Success Rate (D0+D1):    {success_rate:.1f}%")
     if not args.skip_typecheck:
         print(f"  Compile errors:          {compile_error_count} (excluded)")
         print(f"  Timeouts/errors:         {timeout_count} (excluded)")
