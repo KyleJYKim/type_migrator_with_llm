@@ -8,7 +8,12 @@ separate steps:
 """
 import argparse
 import json
+import sys
 from pathlib import Path
+
+# Stream progress live even when stdout is redirected to a SLURM .out file
+# (Python block-buffers a non-tty stdout, which makes a running job look hung).
+sys.stdout.reconfigure(line_buffering=True)
 
 import torch
 from peft import PeftModel
@@ -49,6 +54,13 @@ def main():
     # without inviting runaway greedy generation. Override per-run as needed.
     ap.add_argument("--max_new_tokens", type=int, default=1024)
     ap.add_argument("--n_samples", type=int, default=0)
+    # Break the degenerate-repetition loops (the model enumerating an ever-growing
+    # struct/keyword list until it is cut mid-token, yielding an unparseable type).
+    # repetition_penalty>1 discourages reusing tokens; no_repeat_ngram_size forbids
+    # repeating any n-gram (0 = off). Mild values keep legitimately repetitive struct
+    # types intact; raise them if truncation persists.
+    ap.add_argument("--repetition_penalty", type=float, default=1.2)
+    ap.add_argument("--no_repeat_ngram_size", type=int, default=0)
     args = ap.parse_args()
 
     out_file = args.out_file or Path(args.adapter_dir) / "predictions.jsonl"
@@ -91,6 +103,8 @@ def main():
                     **inputs,
                     max_new_tokens=args.max_new_tokens,
                     do_sample=False,
+                    repetition_penalty=args.repetition_penalty,
+                    no_repeat_ngram_size=args.no_repeat_ngram_size,
                     pad_token_id=tok.eos_token_id,
                 )
             full = tok.decode(gen[0], skip_special_tokens=False)

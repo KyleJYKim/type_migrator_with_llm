@@ -13,10 +13,14 @@ Usage:
 """
 import argparse
 import json
+import sys
 from pathlib import Path
 
 import torch
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
+
+# Stream progress live even when stdout is redirected to a SLURM .out file.
+sys.stdout.reconfigure(line_buffering=True)
 
 # Reuse the identical prompt + parsing from the causal-LM generator.
 from generate import format_prompt, parse_generated_type
