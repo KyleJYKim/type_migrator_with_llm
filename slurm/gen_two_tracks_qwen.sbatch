@@ -1,9 +1,9 @@
 #!/bin/bash
 #SBATCH --job-name=run-two-tracks
 #SBATCH --qos=normal
-#SBATCH --gpus=a100_7g.80gb:1
-#SBATCH --cpus-per-task=8
-#SBATCH --mem=64G
+#SBATCH --gpus=a100_3g.40gb:1
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=32G
 #SBATCH --time=10:00:00
 #SBATCH --output=logs/run-%j.out
 #SBATCH --error=logs/run-%j.err
