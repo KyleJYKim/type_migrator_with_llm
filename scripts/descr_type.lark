@@ -1,0 +1,105 @@
+// ============================================================================
+// descr_type.lark — grammar for the set-theoretic (Descr) type syntax the model
+// must emit. Used for grammar-constrained decoding so generation can ONLY produce
+// well-formed types:
+//   * balanced delimiters — no missing/misplaced "}", ")", or unterminated :"...
+//   * a real EOS at a valid stopping point — no run-to-budget loops
+//   * ONLY the descr vocabulary — so no drift into TypeSpec forms
+//     (String.t(), any(), boolean(), pos_integer(), map(), ...)
+//
+// Format: Lark EBNF (works with outlines.generate.cfg). Transliterable to GBNF
+// for llguidance / llama.cpp.
+//
+// Operator precedence, loosest to tightest:  or / |  <  and  <  not  <  primary
+// This mirrors what descrize/1 in set_theoretic_evaluator.ex accepts.
+// ============================================================================
+
+?start: type
+
+?type: union
+
+?union: intersection (( "or" | "|" ) intersection)*
+
+?intersection: negation ( "and" negation )*
+
+?negation: "not" negation
+         | primary
+
+?primary: base
+        | dynamic
+        | funtype
+        | list
+        | non_empty_list
+        | tuple
+        | map
+        | atom_literal
+        | "(" type ")"                       // parenthesised grouping
+
+// ---- nullary base types ---------------------------------------------------
+base: "none()"      | "term()"      | "pid()"        | "port()"
+    | "reference()" | "integer()"   | "float()"      | "atom()"
+    | "binary()"    | "bitstring()" | "bitstring_no_binary()"
+    | "empty_list()" | "fun()"      | "open_map()"
+
+// ---- gradual --------------------------------------------------------------
+dynamic: "dynamic" "(" [type] ")"            // dynamic()  |  dynamic(T)
+
+// ---- function type:  (arg, arg, ... -> return)   (zero args allowed) ------
+funtype: "(" [arglist] "->" type ")"
+arglist: type ("," type)*
+
+// ---- lists ----------------------------------------------------------------
+list: "[" "]"                                // empty_list()
+    | "[" type "]"                           // list(T)
+    | "[" type "," "..." "]"                 // non-empty proper list
+non_empty_list: "non_empty_list" "(" type [ "," type ] ")"   // (content[, termination])
+
+// ---- tuples ---------------------------------------------------------------
+tuple: "{" [ type ("," type)* ] "}"          // {}, {a}, {a, b}, {a, b, c}
+     | "tuple" "(" [ type ("," type)* ] ")"  // tuple(), tuple(a, b)
+
+// ---- maps -----------------------------------------------------------------
+// %{}              closed empty
+// %{...}           open empty
+// %{k => v, ...}   closed with fields
+// %{..., k => v}   open with fields
+map: "%{" [ "..." [ "," pairs ] | pairs ] "}"
+pairs: pair ("," pair)*
+pair: key "=>" value
+?key: type                                   // atom key, or a domain-key type (dynamic(), base, tuple, ...)
+?value: "if_set" "(" type ")"                // optional field
+      | type
+
+// ---- atoms ----------------------------------------------------------------
+atom_literal: ATOM | QUOTED_ATOM | "nil" | "true" | "false"
+
+ATOM:        /:[a-zA-Z_][a-zA-Z0-9_]*[?!]?/  // :ok, :follow_pending, :__struct__
+QUOTED_ATOM: /:"[^"]*"/                       // :"Pleroma.User"
+
+%import common.WS
+%ignore WS
+
+// ============================================================================
+// BEFORE using this to constrain generation, VALIDATE it accepts every known-good
+// reference type (they are all valid descr types):
+//
+//     from lark import Lark
+//     import json
+//     g = Lark(open("scripts/descr_type.lark").read(), start="type", parser="earley")
+//     bad = 0
+//     for line in open("data/track2_both_pass/test.jsonl"):
+//         t = json.loads(line)["elixir_type"]
+//         try: g.parse(t)
+//         except Exception as e: bad += 1; print("REJECTED:", t[:120])
+//     print("rejected", bad)          # must be 0 — otherwise a construct is missing
+//
+// Then wire it into generation (outlines, plugs into the HF model you already load):
+//
+//     import outlines
+//     m = outlines.models.Transformers(model, tok)          # reuse the loaded 4bit+LoRA model
+//     gen = outlines.generate.cfg(m, open("scripts/descr_type.lark").read())
+//     generated_type = gen(prompt, max_tokens=args.max_new_tokens)
+//
+// (API name varies by outlines version; llguidance offers a LogitsProcessor that
+//  drops straight into your existing model.generate(...) call instead.)
+// ============================================================================

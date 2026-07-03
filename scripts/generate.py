@@ -17,7 +17,9 @@ sys.stdout.reconfigure(line_buffering=True)
 
 import torch
 from peft import PeftModel
-from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
+from transformers import (
+    AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig, LogitsProcessorList,
+)
 
 
 def format_prompt(example):
@@ -43,6 +45,22 @@ def parse_generated_type(generated_text):
     return generated_text.strip()
 
 
+def build_grammar_processor(grammar_path, hf_tokenizer):
+    """Return a LogitsProcessor that constrains generation to the descr type
+    grammar (scripts/descr_type.lark), so the model can only emit well-formed,
+    descr-only types --- no missing delimiters, no unterminated atoms, no drift to
+    TypeSpec forms. Uses `outlines` (pip install outlines lark). The tokenizer-wrapper
+    API is version-sensitive, so it is isolated here for easy adjustment.
+    """
+    from outlines.processors import CFGLogitsProcessor
+    try:
+        from outlines.models.transformers import TransformerTokenizer
+        otok = TransformerTokenizer(hf_tokenizer)
+    except Exception:
+        otok = hf_tokenizer  # newer outlines accept the HF tokenizer directly
+    return CFGLogitsProcessor(open(grammar_path).read(), otok)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--adapter_dir", required=True)
@@ -61,6 +79,13 @@ def main():
     # types intact; raise them if truncation persists.
     ap.add_argument("--repetition_penalty", type=float, default=1.2)
     ap.add_argument("--no_repeat_ngram_size", type=int, default=0)
+    # Grammar-constrained decoding: force the output to be a well-formed descr type
+    # (scripts/descr_type.lark). Eliminates malformed/unparseable output and TypeSpec
+    # drift by construction, so the repetition_penalty above is bypassed when this is on.
+    ap.add_argument("--constrain", action="store_true",
+                    help="constrain decoding to the descr type grammar (needs `outlines`)")
+    ap.add_argument("--grammar",
+                    default=str(Path(__file__).resolve().parent / "descr_type.lark"))
     args = ap.parse_args()
 
     out_file = args.out_file or Path(args.adapter_dir) / "predictions.jsonl"
@@ -84,6 +109,11 @@ def main():
     model = PeftModel.from_pretrained(base, args.adapter_dir)
     model.eval()
 
+    grammar_processor = None
+    if args.constrain:
+        print(f"=== Grammar-constrained decoding: {args.grammar} ===")
+        grammar_processor = build_grammar_processor(args.grammar, tok)
+
     with open(args.test_file) as f:
         test = [json.loads(l) for l in f if l.strip()]
     if args.n_samples > 0:
@@ -98,15 +128,21 @@ def main():
             prompt = format_prompt(ex)
             inputs = tok(prompt, return_tensors="pt").to(model.device)
 
+            gen_kwargs = dict(
+                max_new_tokens=args.max_new_tokens,
+                do_sample=False,
+                pad_token_id=tok.eos_token_id,
+            )
+            if grammar_processor is not None:
+                # Grammar guarantees validity; the repetition_penalty hack is unneeded
+                # (and harmful to structured output), so it is omitted on this path.
+                gen_kwargs["logits_processor"] = LogitsProcessorList([grammar_processor])
+            else:
+                gen_kwargs["repetition_penalty"] = args.repetition_penalty
+                gen_kwargs["no_repeat_ngram_size"] = args.no_repeat_ngram_size
+
             with torch.no_grad():
-                gen = model.generate(
-                    **inputs,
-                    max_new_tokens=args.max_new_tokens,
-                    do_sample=False,
-                    repetition_penalty=args.repetition_penalty,
-                    no_repeat_ngram_size=args.no_repeat_ngram_size,
-                    pad_token_id=tok.eos_token_id,
-                )
+                gen = model.generate(**inputs, **gen_kwargs)
             full = tok.decode(gen[0], skip_special_tokens=False)
             prompt_len = len(tok.decode(inputs.input_ids[0], skip_special_tokens=False))
             generated_type = parse_generated_type(full[prompt_len:])
