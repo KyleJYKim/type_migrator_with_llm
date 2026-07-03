@@ -46,19 +46,17 @@ def parse_generated_type(generated_text):
 
 
 def build_grammar_processor(grammar_path, hf_tokenizer):
-    """Return a LogitsProcessor that constrains generation to the descr type
-    grammar (scripts/descr_type.lark), so the model can only emit well-formed,
-    descr-only types --- no missing delimiters, no unterminated atoms, no drift to
-    TypeSpec forms. Uses `outlines` (pip install outlines lark). The tokenizer-wrapper
-    API is version-sensitive, so it is isolated here for easy adjustment.
+    """Return a LogitsProcessor that constrains generation to the descr type grammar
+    (GBNF, scripts/descr_type.gbnf), so the model can only emit well-formed, descr-only
+    types --- no missing delimiters, no unterminated atoms, no drift to TypeSpec forms.
+    Uses transformers-cfg (pip install transformers-cfg).
     """
-    from outlines.processors import CFGLogitsProcessor
-    try:
-        from outlines.models.transformers import TransformerTokenizer
-        otok = TransformerTokenizer(hf_tokenizer)
-    except Exception:
-        otok = hf_tokenizer  # newer outlines accept the HF tokenizer directly
-    return CFGLogitsProcessor(open(grammar_path).read(), otok)
+    from transformers_cfg.grammar_utils import IncrementalGrammarConstraint
+    from transformers_cfg.generation.logits_process import GrammarConstrainedLogitsProcessor
+    with open(grammar_path) as f:
+        grammar_str = f.read()
+    constraint = IncrementalGrammarConstraint(grammar_str, "root", hf_tokenizer)
+    return GrammarConstrainedLogitsProcessor(constraint)
 
 
 def main():
@@ -80,12 +78,12 @@ def main():
     ap.add_argument("--repetition_penalty", type=float, default=1.2)
     ap.add_argument("--no_repeat_ngram_size", type=int, default=0)
     # Grammar-constrained decoding: force the output to be a well-formed descr type
-    # (scripts/descr_type.lark). Eliminates malformed/unparseable output and TypeSpec
+    # (scripts/descr_type.gbnf). Eliminates malformed/unparseable output and TypeSpec
     # drift by construction, so the repetition_penalty above is bypassed when this is on.
     ap.add_argument("--constrain", action="store_true",
-                    help="constrain decoding to the descr type grammar (needs `outlines`)")
+                    help="constrain decoding to the descr type grammar (needs transformers-cfg)")
     ap.add_argument("--grammar",
-                    default=str(Path(__file__).resolve().parent / "descr_type.lark"))
+                    default=str(Path(__file__).resolve().parent / "descr_type.gbnf"))
     args = ap.parse_args()
 
     out_file = args.out_file or Path(args.adapter_dir) / "predictions.jsonl"
@@ -136,6 +134,8 @@ def main():
             if grammar_processor is not None:
                 # Grammar guarantees validity; the repetition_penalty hack is unneeded
                 # (and harmful to structured output), so it is omitted on this path.
+                # Reset the incremental parser state between examples.
+                grammar_processor.reset()
                 gen_kwargs["logits_processor"] = LogitsProcessorList([grammar_processor])
             else:
                 gen_kwargs["repetition_penalty"] = args.repetition_penalty
