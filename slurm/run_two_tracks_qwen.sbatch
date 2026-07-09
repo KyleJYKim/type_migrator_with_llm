@@ -32,7 +32,8 @@ for t in "${TRACKS[@]}"; do
   python scripts/generate.py \
     --adapter_dir "runs/${t}" \
     --test_file "$COMMON_TEST" \
-    --out_file "runs/${t}/eval_on_common.jsonl"
+    --out_file "runs/${t}/eval_on_common.jsonl" \
+    --constrain
 done
 
 echo "==================  COMPARISON  =================="
