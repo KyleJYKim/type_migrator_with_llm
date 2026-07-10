@@ -19,7 +19,12 @@ import torch
 from peft import PeftModel
 from transformers import (
     AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig, LogitsProcessorList,
+    StoppingCriteriaList,
 )
+try:
+    from transformers import MaxTimeCriteria
+except ImportError:  # older/newer layouts keep it in the submodule
+    from transformers.generation.stopping_criteria import MaxTimeCriteria
 
 
 def format_prompt(example):
@@ -84,6 +89,12 @@ def main():
                     help="constrain decoding to the descr type grammar (needs transformers-cfg)")
     ap.add_argument("--grammar",
                     default=str(Path(__file__).resolve().parent / "descr_type.gbnf"))
+    # Per-entry wall-clock cap. Grammar-constrained decoding recomputes a vocab-wide
+    # mask every token, so a single entry whose type runs long can grind for many
+    # minutes (esp. on a MIG slice) and stall the whole run. This bounds each entry;
+    # a capped entry yields a (likely truncated) prediction and the run continues.
+    ap.add_argument("--max_time", type=float, default=60.0,
+                    help="seconds per entry before generation is cut (constrained path)")
     args = ap.parse_args()
 
     out_file = args.out_file or Path(args.adapter_dir) / "predictions.jsonl"
@@ -137,6 +148,10 @@ def main():
                 # Reset the incremental parser state between examples.
                 grammar_processor.reset()
                 gen_kwargs["logits_processor"] = LogitsProcessorList([grammar_processor])
+                # Fresh timer per entry so no single (slow-mask) generation stalls the run.
+                gen_kwargs["stopping_criteria"] = StoppingCriteriaList(
+                    [MaxTimeCriteria(max_time=args.max_time)]
+                )
             else:
                 gen_kwargs["repetition_penalty"] = args.repetition_penalty
                 gen_kwargs["no_repeat_ngram_size"] = args.no_repeat_ngram_size
