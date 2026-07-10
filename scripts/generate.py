@@ -142,9 +142,15 @@ def main():
                 do_sample=False,
                 pad_token_id=tok.eos_token_id,
             )
+            # Damp degenerate enumeration loops (the model emitting a union/struct far
+            # longer than any real target, e.g. ":a or :b or :c ..." or "integer(),
+            # integer(), ..."). Applied on BOTH paths: the grammar keeps every token
+            # valid but a huge union/struct is perfectly valid, so the grammar has no
+            # notion of "long enough" and cannot stop the loop on its own. Mild values
+            # leave legitimately-repetitive struct types intact.
+            gen_kwargs["repetition_penalty"] = args.repetition_penalty
+            gen_kwargs["no_repeat_ngram_size"] = args.no_repeat_ngram_size
             if grammar_processor is not None:
-                # Grammar guarantees validity; the repetition_penalty hack is unneeded
-                # (and harmful to structured output), so it is omitted on this path.
                 # Reset the incremental parser state between examples.
                 grammar_processor.reset()
                 gen_kwargs["logits_processor"] = LogitsProcessorList([grammar_processor])
@@ -152,9 +158,6 @@ def main():
                 gen_kwargs["stopping_criteria"] = StoppingCriteriaList(
                     [MaxTimeCriteria(max_time=args.max_time)]
                 )
-            else:
-                gen_kwargs["repetition_penalty"] = args.repetition_penalty
-                gen_kwargs["no_repeat_ngram_size"] = args.no_repeat_ngram_size
 
             with torch.no_grad():
                 gen = model.generate(**inputs, **gen_kwargs)
