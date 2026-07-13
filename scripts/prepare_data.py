@@ -110,7 +110,17 @@ def main():
             print(f"  {s:5s}: {len(items):5d} entries from {n_sp:3d} subprojects")
             with open(out / f"{s}.jsonl", "w") as f:
                 for e in items:
-                    f.write(json.dumps(e) + "\n")
+                    # TRAINING only (train/val) uses the compacted label -- an
+                    # ungrounded struct expansion collapsed to the open nominal
+                    # %{..., :__struct__ => :"Name"} form, so the model isn't
+                    # trained to expect field knowledge the prompt never gives
+                    # it (see type_migrator's TranslationRunner). `test` keeps
+                    # the original, fully expanded `elixir_type` unchanged --
+                    # it is the ground truth for scoring, not a training target.
+                    out_e = e
+                    if s in ("train", "val") and e.get("compact_elixir_type"):
+                        out_e = {**e, "elixir_type": e["compact_elixir_type"]}
+                    f.write(json.dumps(out_e) + "\n")
 
         track1_filter = (f"both tools pass; dynamic-free; "
                          f"def<{MAX_DEF_LEN}, type<{MAX_TYPE_LEN}")
@@ -123,6 +133,12 @@ def main():
                 "filter": track1_filter if name.startswith("track1") else track2_filter,
                 "counts": counts,
                 "target_field": "elixir_type",
+                "target_field_note": (
+                    "train/val: elixir_type is compact_elixir_type (ungrounded struct "
+                    "expansions collapsed to an open %{..., :__struct__ => ...} form). "
+                    "test: elixir_type is the original, fully expanded reference, "
+                    "unchanged -- it is the scoring ground truth, not a training target."
+                ),
                 "auxiliary_fields": ["spec", "type"],
                 "train_subprojects": sorted(train_sp),
                 "val_subprojects": sorted(val_sp),
