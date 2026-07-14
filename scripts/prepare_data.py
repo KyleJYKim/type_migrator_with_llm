@@ -94,14 +94,23 @@ def main():
             return "val"
         return "test"
 
-    def write_track(name, candidates):
-        out = DATA_DIR / name
+    def write_track(name, candidates, compact):
+        # Two variants per track, for the cascade strategy: try the EXPANDED
+        # (precise, fully-typed-target) adapter first; where its prediction is
+        # incompatible with the reference, retry with the COMPACT (hedged,
+        # ungrounded-shapes-generalized) adapter; where THAT still fails,
+        # fall back to dynamic() (arity-matched, always compatible by
+        # construction -- see Descr.compatible?/2). `compact` selects which
+        # adapter this call's train/val labels are for; `test` is identical
+        # either way (always the original, fully expanded elixir_type -- it
+        # is the scoring ground truth, not a training target).
+        out = DATA_DIR / (name if compact else f"{name}_expanded")
         out.mkdir(parents=True, exist_ok=True)
         splits = defaultdict(list)
         for e in candidates:
             splits[split_of(e)].append(e)
 
-        print(f"\n[{name}]  {len(candidates)} entries")
+        print(f"\n[{out.name}]  {len(candidates)} entries")
         counts = {}
         for s in ("train", "val", "test"):
             items = splits[s]
@@ -110,15 +119,8 @@ def main():
             print(f"  {s:5s}: {len(items):5d} entries from {n_sp:3d} subprojects")
             with open(out / f"{s}.jsonl", "w") as f:
                 for e in items:
-                    # TRAINING only (train/val) uses the compacted label -- an
-                    # ungrounded struct expansion collapsed to the open nominal
-                    # %{..., :__struct__ => :"Name"} form, so the model isn't
-                    # trained to expect field knowledge the prompt never gives
-                    # it (see type_migrator's TranslationRunner). `test` keeps
-                    # the original, fully expanded `elixir_type` unchanged --
-                    # it is the ground truth for scoring, not a training target.
                     out_e = e
-                    if s in ("train", "val") and e.get("compact_elixir_type"):
+                    if compact and s in ("train", "val") and e.get("compact_elixir_type"):
                         out_e = {**e, "elixir_type": e["compact_elixir_type"]}
                     f.write(json.dumps(out_e) + "\n")
 
@@ -127,17 +129,23 @@ def main():
         track2_filter = f"both tools pass; def<{MAX_DEF_LEN}, type<{MAX_TYPE_LEN}"
         with open(out / "split_info.json", "w") as f:
             json.dump({
-                "track": name,
+                "track": out.name,
                 "seed": SEED,
                 "split_unit": "subproject = project/module_root",
                 "filter": track1_filter if name.startswith("track1") else track2_filter,
                 "counts": counts,
                 "target_field": "elixir_type",
                 "target_field_note": (
-                    "train/val: elixir_type is compact_elixir_type (ungrounded struct "
-                    "expansions collapsed to an open %{..., :__struct__ => ...} form). "
-                    "test: elixir_type is the original, fully expanded reference, "
-                    "unchanged -- it is the scoring ground truth, not a training target."
+                    (
+                        "train/val: elixir_type is compact_elixir_type (ungrounded struct "
+                        "expansions collapsed to an open %{..., :__struct__ => ...} form). "
+                        "test: elixir_type is the original, fully expanded reference, "
+                        "unchanged -- it is the scoring ground truth, not a training target."
+                    ) if compact else (
+                        "train/val/test: elixir_type is the original, fully expanded "
+                        "reference throughout -- this is the EXPANDED (non-compacted) "
+                        "variant, tier 1 of the cascade strategy."
+                    )
                 ),
                 "auxiliary_fields": ["spec", "type"],
                 "train_subprojects": sorted(train_sp),
@@ -145,8 +153,10 @@ def main():
                 "test_subprojects": sorted(test_sp),
             }, f, indent=2)
 
-    write_track("track1_no_gradual", track1)
-    write_track("track2_both_pass", track2)
+    write_track("track1_no_gradual", track1, compact=True)
+    write_track("track1_no_gradual", track1, compact=False)
+    write_track("track2_both_pass", track2, compact=True)
+    write_track("track2_both_pass", track2, compact=False)
 
 
 if __name__ == "__main__":
