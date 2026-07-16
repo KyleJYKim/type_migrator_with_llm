@@ -147,7 +147,7 @@ def main():
                         "variant, tier 1 of the cascade strategy."
                     )
                 ),
-                "auxiliary_fields": ["spec", "type"],
+                "auxiliary_fields": ["spec", "type", "return_expressions"],
                 "train_subprojects": sorted(train_sp),
                 "val_subprojects": sorted(val_sp),
                 "test_subprojects": sorted(test_sp),

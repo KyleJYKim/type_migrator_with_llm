@@ -34,10 +34,18 @@ def format_prompt(example):
             type_block = "\n".join(example["type"])
         else:
             type_block = str(example["type"])
+
+    # Must match train_sft.py's format_prompt exactly -- a train/inference
+    # prompt mismatch would silently degrade generation quality.
+    return_expr_block = ""
+    if example.get("return_expressions"):
+        return_expr_block = "\n".join(example["return_expressions"])
+
     return (
         f"### Module: {example['module']}\n"
         f"### Types in scope:\n{type_block}\n\n"
         f"### Definition:\n{example['definition']}\n\n"
+        f"### Return expressions:\n{return_expr_block}\n\n"
         f"### Elixir type:\n"
     )
 

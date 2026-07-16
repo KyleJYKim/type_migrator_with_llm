@@ -62,10 +62,21 @@ def format_prompt(example):
         else:
             type_block = str(example["type"])
 
+    # The outermost constructor of each tail position (last expression of
+    # each clause, recursively into case/cond/if/with branches) -- e.g.
+    # "true", "false", "{:error, _}", "call: do_thing/1". Grounds the
+    # return union in what it was actually derived from, so "the output
+    # has exactly these arms" is a learnable copying behavior instead of a
+    # pattern-completion guess (see TranslationRunner.return_expressions/1).
+    return_expr_block = ""
+    if example.get("return_expressions"):
+        return_expr_block = "\n".join(example["return_expressions"])
+
     prompt = (
         f"### Module: {example['module']}\n"
         f"### Types in scope:\n{type_block}\n\n"
         f"### Definition:\n{example['definition']}\n\n"
+        f"### Return expressions:\n{return_expr_block}\n\n"
         f"### Elixir type:\n"
     )
     completion = example["elixir_type"]
