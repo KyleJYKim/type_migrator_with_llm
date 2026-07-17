@@ -72,10 +72,19 @@ def format_prompt(example):
     if example.get("return_expressions"):
         return_expr_block = "\n".join(example["return_expressions"])
 
+    # The symmetric grounding for the ARGUMENT side: each clause head's
+    # parameter pattern shapes + guard (e.g. "(%Object{}, _)",
+    # "(_, _) when is_binary(x)"). States the input types the heads/guards
+    # evidence, and pins the true arity (each line shows exactly N slots).
+    arg_pattern_block = ""
+    if example.get("argument_patterns"):
+        arg_pattern_block = "\n".join(example["argument_patterns"])
+
     prompt = (
         f"### Module: {example['module']}\n"
         f"### Types in scope:\n{type_block}\n\n"
         f"### Definition:\n{example['definition']}\n\n"
+        f"### Argument patterns:\n{arg_pattern_block}\n\n"
         f"### Return expressions:\n{return_expr_block}\n\n"
         f"### Elixir type:\n"
     )
