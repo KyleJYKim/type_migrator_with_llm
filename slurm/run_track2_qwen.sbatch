@@ -9,7 +9,7 @@
 #SBATCH --error=logs/run-%j.err
 
 CONFIG="${1:-configs/qwen7b_qlora.yaml}"
-TRACKS="track2_both_pass"
+TRACK="track2_both_pass"
 COMMON_TEST="data/track2_both_pass/test.jsonl"
 
 eval "$(conda shell.bash hook)"
