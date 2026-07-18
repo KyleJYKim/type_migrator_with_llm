@@ -9,7 +9,7 @@
 #SBATCH --error=logs/run-%j.err
 
 CONFIG="${1:-configs/qwen7b_qlora.yaml}"
-TRACKS=(track2_both_pass)
+TRACKS="track2_both_pass"
 COMMON_TEST="data/track2_both_pass/test.jsonl"
 
 eval "$(conda shell.bash hook)"
@@ -19,23 +19,19 @@ cd ~/elixir_types_trainer/type_migrator_with_llm
 
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
-for t in "${TRACKS[@]}"; do
-  echo "==================  TRAIN  ${t}  =================="
-  python scripts/train_sft.py \
-    --config "$CONFIG" \
-    --data_dir "data/${t}" \
-    --output_dir "runs/${t}"
-done
+echo "==================  TRAIN  $TRACK  =================="
+python scripts/train_sft.py \
+  --config "$CONFIG" \
+  --data_dir "data/$TRACK" \
+  --output_dir "runs/$TRACK"
 
-for t in "${TRACKS[@]}"; do
-  echo "==================  GENERATE   ${t}  (common test)  =================="
-  python scripts/generate.py \
-    --adapter_dir "runs/${t}" \
-    --test_file "$COMMON_TEST" \
-    --out_file "runs/${t}/eval_on_common.jsonl" \
-    --constrain
-done
+echo "==================  GENERATE   $TRACK  (common test)  =================="
+python scripts/generate.py \
+  --adapter_dir "runs/$TRACK" \
+  --test_file "$COMMON_TEST" \
+  --out_file "runs/$TRACK/eval_on_common.jsonl" \
+  --constrain
 
-echo "Done. Per-adapter results: runs/*/eval_on_common.jsonl"
+echo "Done. Per-adapter results: runs/$TRACK/eval_on_common.jsonl"
 
 SBATCH
