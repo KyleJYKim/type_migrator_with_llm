@@ -5,7 +5,7 @@
   "filter": "both tools pass; dynamic-free; def<2000, type<1000",
   "counts": {
     "train": {
-      "entries": 2955,
+      "entries": 2951,
       "subprojects": 153
     },
     "val": {

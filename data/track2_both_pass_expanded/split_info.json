@@ -5,7 +5,7 @@
   "filter": "both tools pass; def<2000, type<1000",
   "counts": {
     "train": {
-      "entries": 5420,
+      "entries": 5415,
       "subprojects": 177
     },
     "val": {
