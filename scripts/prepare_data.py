@@ -17,8 +17,8 @@ field) such as `mbta` or `cldr` actually contains many independent codebases.
 
 Usage:  python scripts/prepare_data.py [seed]
 """
+import hashlib
 import json
-import random
 import sys
 from collections import defaultdict
 from pathlib import Path
@@ -76,23 +76,34 @@ def main():
           f"(= track2 minus {len(track2) - len(track1)} dynamic-containing)")
 
     # One subproject split over the superset (track2), applied to both tracks.
+    #
+    # HASH-BASED, not shuffle-based: a subproject's split is a pure function
+    # of its own name (md5 mod 100, salted with SEED), independent of every
+    # other subproject. The old shuffle-of-the-universe approach made the
+    # entire partition depend on the dataset's exact composition -- a ~200
+    # entry change between two dataset builds once replaced two-thirds of
+    # the test subprojects, silently invalidating every cross-round metric
+    # comparison. With hashing, a subproject keeps its split assignment
+    # across dataset regenerations forever, so runs stay comparable.
     universe = sorted({subproject(e) for e in track2})
-    random.seed(SEED)
-    random.shuffle(universe)
+
+    def split_of_name(sp):
+        h = int(hashlib.md5(f"{SEED}:{sp}".encode()).hexdigest(), 16) % 100
+        if h < 70:
+            return "train"
+        elif h < 85:
+            return "val"
+        return "test"
+
+    train_sp = {sp for sp in universe if split_of_name(sp) == "train"}
+    val_sp = {sp for sp in universe if split_of_name(sp) == "val"}
+    test_sp = {sp for sp in universe if split_of_name(sp) == "test"}
     n = len(universe)
-    train_sp = set(universe[: int(n * 0.70)])
-    val_sp = set(universe[int(n * 0.70): int(n * 0.85)])
-    test_sp = set(universe[int(n * 0.85):])
     print(f"\nSubproject universe  : {n}  "
           f"(train {len(train_sp)} / val {len(val_sp)} / test {len(test_sp)})")
 
     def split_of(e):
-        sp = subproject(e)
-        if sp in train_sp:
-            return "train"
-        elif sp in val_sp:
-            return "val"
-        return "test"
+        return split_of_name(subproject(e))
 
     def write_track(name, candidates, compact):
         # Two variants per track, for the cascade strategy: try the EXPANDED
