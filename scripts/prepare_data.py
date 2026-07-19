@@ -148,10 +148,13 @@ def main():
                 "target_field": "elixir_type",
                 "target_field_note": (
                     (
-                        "train/val: elixir_type is compact_elixir_type (ungrounded struct "
-                        "expansions collapsed to an open %{..., :__struct__ => ...} form). "
-                        "test: elixir_type is the original, fully expanded reference, "
-                        "unchanged -- it is the scoring ground truth, not a training target."
+                        "train/val: elixir_type is compact_elixir_type -- ungrounded struct "
+                        "expansions collapsed to an open %{..., :__struct__ => ...} form, "
+                        "ungrounded keyword pairs/maps generalized, and return-union arms "
+                        "with no visible tail-constructor evidence (opaque call tails) "
+                        "hedged to dynamic(). test: elixir_type is the original, fully "
+                        "expanded reference, unchanged -- it is the scoring ground truth, "
+                        "not a training target."
                     ) if compact else (
                         "train/val/test: elixir_type is the original, fully expanded "
                         "reference throughout -- this is the EXPANDED (non-compacted) "
