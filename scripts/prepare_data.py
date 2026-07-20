@@ -108,11 +108,13 @@ def main():
     # Each mode -> (dir-name suffix, source field swapped into `elixir_type`
     # for train/val labels, split_info note). `test` is IDENTICAL across all
     # modes (always the original, fully expanded elixir_type -- it is the
-    # scoring ground truth, never a training target). The three modes form an
+    # scoring ground truth, never a training target). The modes form an
     # ablation of the label-honesty transforms:
-    #   compact  : struct/keyword/map compaction AND return dynamic()-hedging
-    #   hedged   : ONLY return dynamic()-hedging (isolates hedging's effect)
-    #   expanded : none -- the raw human-declared spec translation
+    #   compact     : struct/keyword/map compaction AND return hedging
+    #   hedged      : ONLY return hedging (isolates the return-hedge effect)
+    #   hedged_full : return hedging AND argument hedging (both positions the
+    #                 code cannot evidence hedged to dynamic())
+    #   expanded    : none -- the raw human-declared spec translation
     LABEL_MODES = {
         "compact": (
             "",
@@ -131,6 +133,16 @@ def main():
             "evidence hedged to dynamic() (no struct/keyword/map compaction). "
             "Ablation isolating the return-hedging transform. test: original "
             "expanded reference, unchanged (scoring ground truth).",
+        ),
+        "hedged_full": (
+            "_hedged_full",
+            "hedged_full_elixir_type",
+            "train/val: elixir_type is hedged_full_elixir_type -- return hedging "
+            "PLUS argument hedging (an argument the code cannot evidence -- bare "
+            "variable pattern in every clause, no guard, used in the body only as "
+            "pass-through -- hedged to dynamic()). Ablation adding argument hedging "
+            "on top of the return-hedged variant. test: original expanded "
+            "reference, unchanged (scoring ground truth).",
         ),
         "expanded": (
             "_expanded",
@@ -181,7 +193,7 @@ def main():
             }, f, indent=2)
 
     for track_name, candidates in [("track1_no_gradual", track1), ("track2_both_pass", track2)]:
-        for mode in ("compact", "hedged", "expanded"):
+        for mode in ("compact", "hedged", "hedged_full", "expanded"):
             write_track(track_name, candidates, mode)
 
 
