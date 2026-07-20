@@ -105,17 +105,44 @@ def main():
     def split_of(e):
         return split_of_name(subproject(e))
 
-    def write_track(name, candidates, compact):
-        # Two variants per track, for the cascade strategy: try the EXPANDED
-        # (precise, fully-typed-target) adapter first; where its prediction is
-        # incompatible with the reference, retry with the COMPACT (hedged,
-        # ungrounded-shapes-generalized) adapter; where THAT still fails,
-        # fall back to dynamic() (arity-matched, always compatible by
-        # construction -- see Descr.compatible?/2). `compact` selects which
-        # adapter this call's train/val labels are for; `test` is identical
-        # either way (always the original, fully expanded elixir_type -- it
-        # is the scoring ground truth, not a training target).
-        out = DATA_DIR / (name if compact else f"{name}_expanded")
+    # Each mode -> (dir-name suffix, source field swapped into `elixir_type`
+    # for train/val labels, split_info note). `test` is IDENTICAL across all
+    # modes (always the original, fully expanded elixir_type -- it is the
+    # scoring ground truth, never a training target). The three modes form an
+    # ablation of the label-honesty transforms:
+    #   compact  : struct/keyword/map compaction AND return dynamic()-hedging
+    #   hedged   : ONLY return dynamic()-hedging (isolates hedging's effect)
+    #   expanded : none -- the raw human-declared spec translation
+    LABEL_MODES = {
+        "compact": (
+            "",
+            "compact_elixir_type",
+            "train/val: elixir_type is compact_elixir_type -- ungrounded struct "
+            "expansions collapsed to open %{..., :__struct__ => ...}, ungrounded "
+            "keyword pairs/maps generalized, AND return-union arms with no visible "
+            "tail-constructor evidence hedged to dynamic(). test: original expanded "
+            "reference, unchanged (scoring ground truth).",
+        ),
+        "hedged": (
+            "_hedged",
+            "hedged_elixir_type",
+            "train/val: elixir_type is hedged_elixir_type -- the fully expanded "
+            "reference with ONLY return-union arms lacking visible tail-constructor "
+            "evidence hedged to dynamic() (no struct/keyword/map compaction). "
+            "Ablation isolating the return-hedging transform. test: original "
+            "expanded reference, unchanged (scoring ground truth).",
+        ),
+        "expanded": (
+            "_expanded",
+            None,
+            "train/val/test: elixir_type is the original, fully expanded reference "
+            "throughout -- the raw human-declared spec translation, no transforms.",
+        ),
+    }
+
+    def write_track(name, candidates, mode):
+        suffix, source_field, note = LABEL_MODES[mode]
+        out = DATA_DIR / f"{name}{suffix}"
         out.mkdir(parents=True, exist_ok=True)
         splits = defaultdict(list)
         for e in candidates:
@@ -131,8 +158,8 @@ def main():
             with open(out / f"{s}.jsonl", "w") as f:
                 for e in items:
                     out_e = e
-                    if compact and s in ("train", "val") and e.get("compact_elixir_type"):
-                        out_e = {**e, "elixir_type": e["compact_elixir_type"]}
+                    if source_field and s in ("train", "val") and e.get(source_field):
+                        out_e = {**e, "elixir_type": e[source_field]}
                     f.write(json.dumps(out_e) + "\n")
 
         track1_filter = (f"both tools pass; dynamic-free; "
@@ -146,31 +173,16 @@ def main():
                 "filter": track1_filter if name.startswith("track1") else track2_filter,
                 "counts": counts,
                 "target_field": "elixir_type",
-                "target_field_note": (
-                    (
-                        "train/val: elixir_type is compact_elixir_type -- ungrounded struct "
-                        "expansions collapsed to an open %{..., :__struct__ => ...} form, "
-                        "ungrounded keyword pairs/maps generalized, and return-union arms "
-                        "with no visible tail-constructor evidence (opaque call tails) "
-                        "hedged to dynamic(). test: elixir_type is the original, fully "
-                        "expanded reference, unchanged -- it is the scoring ground truth, "
-                        "not a training target."
-                    ) if compact else (
-                        "train/val/test: elixir_type is the original, fully expanded "
-                        "reference throughout -- this is the EXPANDED (non-compacted) "
-                        "variant, tier 1 of the cascade strategy."
-                    )
-                ),
+                "target_field_note": note,
                 "auxiliary_fields": ["spec", "type", "return_expressions", "argument_patterns"],
                 "train_subprojects": sorted(train_sp),
                 "val_subprojects": sorted(val_sp),
                 "test_subprojects": sorted(test_sp),
             }, f, indent=2)
 
-    write_track("track1_no_gradual", track1, compact=True)
-    write_track("track1_no_gradual", track1, compact=False)
-    write_track("track2_both_pass", track2, compact=True)
-    write_track("track2_both_pass", track2, compact=False)
+    for track_name, candidates in [("track1_no_gradual", track1), ("track2_both_pass", track2)]:
+        for mode in ("compact", "hedged", "expanded"):
+            write_track(track_name, candidates, mode)
 
 
 if __name__ == "__main__":
