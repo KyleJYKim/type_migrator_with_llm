@@ -5,7 +5,7 @@
   "filter": "both tools pass; def<2000, type<1000",
   "counts": {
     "train": {
-      "entries": 5415,
+      "entries": 5416,
       "subprojects": 177
     },
     "val": {
@@ -18,7 +18,7 @@
     }
   },
   "target_field": "elixir_type",
-  "target_field_note": "train/val: elixir_type is compact_elixir_type -- ungrounded struct expansions collapsed to an open %{..., :__struct__ => ...} form, ungrounded keyword pairs/maps generalized, and return-union arms with no visible tail-constructor evidence (opaque call tails) hedged to dynamic(). test: elixir_type is the original, fully expanded reference, unchanged -- it is the scoring ground truth, not a training target.",
+  "target_field_note": "train/val: elixir_type is compact_elixir_type -- ungrounded struct expansions collapsed to open %{..., :__struct__ => ...}, ungrounded keyword pairs/maps generalized, AND return-union arms with no visible tail-constructor evidence hedged to dynamic(). test: original expanded reference, unchanged (scoring ground truth).",
   "auxiliary_fields": [
     "spec",
     "type",
