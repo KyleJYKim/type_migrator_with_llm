@@ -108,41 +108,38 @@ def main():
     # Each mode -> (dir-name suffix, source field swapped into `elixir_type`
     # for train/val labels, split_info note). `test` is IDENTICAL across all
     # modes (always the original, fully expanded elixir_type -- it is the
-    # scoring ground truth, never a training target). The modes form an
-    # ablation of the label-honesty transforms:
-    #   compact     : struct/keyword/map compaction AND return hedging
-    #   hedged      : ONLY return hedging (isolates the return-hedge effect)
-    #   hedged_full : return hedging AND argument hedging (both positions the
-    #                 code cannot evidence hedged to dynamic())
-    #   expanded    : none -- the raw human-declared spec translation
+    # scoring ground truth, never a training target). The branches are the
+    # honest-labelling transforms:
+    #   compacted : shape honesty -- ungrounded struct -> dynamic(open struct),
+    #               ungrounded map -> open_map(), ungrounded keyword pair ->
+    #               {atom(), term()}. No hedging.
+    #   hedged    : position honesty -- return arms and argument positions the
+    #               code cannot evidence -> dynamic(). No compaction.
+    #   both      : compaction AND hedging.
+    #   expanded  : none -- the raw human-declared spec translation (baseline).
     LABEL_MODES = {
-        "compact": (
-            "",
-            "compact_elixir_type",
-            "train/val: elixir_type is compact_elixir_type -- ungrounded struct "
-            "expansions collapsed to open %{..., :__struct__ => ...}, ungrounded "
-            "keyword pairs/maps generalized, AND return-union arms with no visible "
-            "tail-constructor evidence hedged to dynamic(). test: original expanded "
-            "reference, unchanged (scoring ground truth).",
+        "compacted": (
+            "_compacted",
+            "compacted_elixir_type",
+            "train/val: elixir_type is compacted_elixir_type -- ungrounded structs "
+            "collapsed to dynamic(%{..., :__struct__ => ...}), ungrounded plain maps "
+            "to open_map(), ungrounded keyword pairs to {atom(), term()}; no hedging. "
+            "test: original expanded reference, unchanged (scoring ground truth).",
         ),
         "hedged": (
             "_hedged",
             "hedged_elixir_type",
-            "train/val: elixir_type is hedged_elixir_type -- the fully expanded "
-            "reference with ONLY return-union arms lacking visible tail-constructor "
-            "evidence hedged to dynamic() (no struct/keyword/map compaction). "
-            "Ablation isolating the return-hedging transform. test: original "
-            "expanded reference, unchanged (scoring ground truth).",
+            "train/val: elixir_type is hedged_elixir_type -- return-union arms and "
+            "argument positions the code cannot evidence hedged to dynamic(); no "
+            "struct/map/keyword compaction. test: original expanded reference, "
+            "unchanged (scoring ground truth).",
         ),
-        "hedged_full": (
-            "_hedged_full",
-            "hedged_full_elixir_type",
-            "train/val: elixir_type is hedged_full_elixir_type -- return hedging "
-            "PLUS argument hedging (an argument the code cannot evidence -- bare "
-            "variable pattern in every clause, no guard, used in the body only as "
-            "pass-through -- hedged to dynamic()). Ablation adding argument hedging "
-            "on top of the return-hedged variant. test: original expanded "
-            "reference, unchanged (scoring ground truth).",
+        "both": (
+            "_both",
+            "both_elixir_type",
+            "train/val: elixir_type is both_elixir_type -- compaction (shape) AND "
+            "hedging (positions) combined. test: original expanded reference, "
+            "unchanged (scoring ground truth).",
         ),
         "expanded": (
             "_expanded",
@@ -193,7 +190,7 @@ def main():
             }, f, indent=2)
 
     for track_name, candidates in [("track1_no_gradual", track1), ("track2_both_pass", track2)]:
-        for mode in ("compact", "hedged", "hedged_full", "expanded"):
+        for mode in ("compacted", "hedged", "both", "expanded"):
             write_track(track_name, candidates, mode)
 
 
