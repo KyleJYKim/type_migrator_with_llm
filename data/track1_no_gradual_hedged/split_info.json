@@ -18,7 +18,7 @@
     }
   },
   "target_field": "elixir_type",
-  "target_field_note": "train/val: elixir_type is hedged_elixir_type -- the fully expanded reference with ONLY return-union arms lacking visible tail-constructor evidence hedged to dynamic() (no struct/keyword/map compaction). Ablation isolating the return-hedging transform. test: original expanded reference, unchanged (scoring ground truth).",
+  "target_field_note": "train/val: elixir_type is hedged_elixir_type -- return-union arms and argument positions the code cannot evidence hedged to dynamic(); no struct/map/keyword compaction. test: original expanded reference, unchanged (scoring ground truth).",
   "auxiliary_fields": [
     "spec",
     "type",
