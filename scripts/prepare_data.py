@@ -25,7 +25,9 @@ from pathlib import Path
 
 SEED = int(sys.argv[1]) if len(sys.argv) > 1 else 42
 DATASET = "data/dataset.jsonl"
-DATA_DIR = Path("data")
+# Seed-scoped outputs so several seeds coexist (a seed only reshuffles the
+# subproject -> split assignment, so its splits must not overwrite another's).
+DATA_DIR = Path(f"data/seed{SEED}")
 
 # Length guards: drop pathological functions / annotations that would dominate
 # batches without proportionate learning signal.
@@ -45,8 +47,8 @@ def both_pass(e):
     return (
         e.get("dialyzer", {}).get("pass") is True
         and e.get("typecheck", {}).get("pass") is True
-        and e.get("elixir_type")
-        and e.get("definition")
+        # and e.get("elixir_type")
+        # and e.get("definition")
     )
 
 
