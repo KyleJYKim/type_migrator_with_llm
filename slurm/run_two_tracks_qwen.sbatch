@@ -19,7 +19,7 @@
 # Running one seed per job (5 jobs) keeps each within a ~10h wall clock and lets
 # them run in parallel; the default all-in-one needs the larger --time above.
 CONFIG="${1:-configs/qwen7b_qlora.yaml}"
-TRACKS=(track2_both_pass_expanded track2_both_pass_hedged)
+TRACKS=(track1_no_gradual_expanded track1_no_gradual_hedged track2_both_pass_expanded track2_both_pass_hedged)
 
 eval "$(conda shell.bash hook)"
 conda activate etr
