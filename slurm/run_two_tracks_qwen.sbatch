@@ -29,22 +29,22 @@ cd ~/elixir_types_trainer/type_migrator_with_llm
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
 
-COMMON_TEST="data/track2_both_pass_expanded/test.jsonl"
+COMMON_TEST="data/seed42/track2_both_pass_expanded/test.jsonl"
 
 for t in "${TRACKS[@]}"; do
   echo "==================  TRAIN ${t}  =================="
   python scripts/train_sft.py \
     --config "$CONFIG" \
-    --data_dir "data/${t}" \
-    --output_dir "runs/${t}"
+    --data_dir "data/seed42/${t}" \
+    --output_dir "runs/seed42/${t}"
 done
 
 for t in "${TRACKS[@]}"; do
   echo "==================  GENERATE ${t}  (own test)  =================="
   python scripts/generate.py \
-    --adapter_dir "runs/${t}" \
+    --adapter_dir "runs/seed42/${t}" \
     --test_file "$COMMON_TEST" \
-    --out_file "runs/${t}/eval_on_common.jsonl" \
+    --out_file "runs/seed42/${t}/eval_on_common.jsonl" \
     --constrain
 done
 
