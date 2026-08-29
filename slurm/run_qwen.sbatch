@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=ElixirType training and generating
+#SBATCH --job-name=ElixirType_Qwen
 #SBATCH --qos=normal
 #SBATCH --gpus=a100_7g.80gb:1
 #SBATCH --cpus-per-task=8
