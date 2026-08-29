@@ -55,38 +55,42 @@ def format_prompt(example):
         • Completion = the answer the model must learn to produce
         • `<|endoftext|>` = a special token telling the model "this is where the answer end"
     """
-    type_block = ""
-    if example.get("type"):
-        if isinstance(example["type"], list):
-            type_block = "\n".join(example["type"])
-        else:
-            type_block = str(example["type"])
+    # v1: the prompt carries ONLY the function definition and predicts its
+    # Elixir Type. The extra context blocks (module, types-in-scope, and the
+    # two grounding blocks -- argument patterns / return expressions) are kept
+    # here, commented, for a later variant that adds them back.
+    #
+    # type_block = ""
+    # if example.get("type"):
+    #     if isinstance(example["type"], list):
+    #         type_block = "\n".join(example["type"])
+    #     else:
+    #         type_block = str(example["type"])
+    #
+    # return_expr_block = ""
+    # if example.get("return_expressions"):
+    #     return_expr_block = "\n".join(example["return_expressions"])
+    #
+    # arg_pattern_block = ""
+    # if example.get("argument_patterns"):
+    #     arg_pattern_block = "\n".join(example["argument_patterns"])
 
-    # The outermost constructor of each tail position (last expression of
-    # each clause, recursively into case/cond/if/with branches) -- e.g.
-    # "true", "false", "{:error, _}", "call: do_thing/1". Grounds the
-    # return union in what it was actually derived from, so "the output
-    # has exactly these arms" is a learnable copying behavior instead of a
-    # pattern-completion guess (see TranslationRunner.return_expressions/1).
-    return_expr_block = ""
-    if example.get("return_expressions"):
-        return_expr_block = "\n".join(example["return_expressions"])
-
-    # The symmetric grounding for the ARGUMENT side: each clause head's
-    # parameter pattern shapes + guard (e.g. "(%Object{}, _)",
-    # "(_, _) when is_binary(x)"). States the input types the heads/guards
-    # evidence, and pins the true arity (each line shows exactly N slots).
-    arg_pattern_block = ""
-    if example.get("argument_patterns"):
-        arg_pattern_block = "\n".join(example["argument_patterns"])
-
+    # Instruction-style prompt. MUST stay byte-identical to generate.py's
+    # format_prompt up to the "### Output:\n" boundary -- a train/inference
+    # drift silently degrades generation.
     prompt = (
-        f"### Module: {example['module']}\n"
-        f"### Types in scope:\n{type_block}\n\n"
-        f"### Definition:\n{example['definition']}\n\n"
-        f"### Argument patterns:\n{arg_pattern_block}\n\n"
-        f"### Return expressions:\n{return_expr_block}\n\n"
-        f"### Elixir type:\n"
+        "### Instruction:\n"
+        "For the given Elixir function definition, infer the most precise correct "
+        "function type, written as an Elixir set-theoretic type annotation. "
+        "Respond only with Elixir Types (Descr) syntax.\n\n"
+        "### Input:\n"
+        # f"Module: {example['module']}\n"
+        # f"Function: {example['function']}/{example['arity']}\n"
+        # f"Types in scope:\n{type_block}\n\n"
+        f"{example['definition']}\n\n"
+        # f"Argument patterns:\n{arg_pattern_block}\n\n"
+        # f"Return expressions:\n{return_expr_block}\n\n"
+        "### Output:\n"
     )
     completion = example["elixir_type"]
     return {"text": prompt + completion + "<|endoftext|>"}
