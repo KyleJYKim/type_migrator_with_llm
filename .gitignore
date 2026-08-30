@@ -5,7 +5,6 @@ __pycache__/
 .venv/
 .env
 wandb/
-# 60MB raw input; tracks are generated from it and committed instead
 data/
 data_backup_20260614_1605/
 data_backup_pre_repipeline/

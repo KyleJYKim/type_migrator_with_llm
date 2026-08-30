@@ -50,7 +50,7 @@ def format_prompt(example):
     """
     Build the training text. 
     Train on the full text.
-    Each raw data example gets formatted into on big string:
+    Each raw data example gets formatted into one big string:
         • Prompt = the context the model sees (module name, types, function definition)
         • Completion = the answer the model must learn to produce
         • `<|endoftext|>` = a special token telling the model "this is where the answer end"
@@ -59,14 +59,14 @@ def format_prompt(example):
     # Elixir Type. The extra context blocks (module, types-in-scope, and the
     # two grounding blocks -- argument patterns / return expressions) are kept
     # here, commented, for a later variant that adds them back.
-    #
-    # type_block = ""
-    # if example.get("type"):
-    #     if isinstance(example["type"], list):
-    #         type_block = "\n".join(example["type"])
-    #     else:
-    #         type_block = str(example["type"])
-    #
+    
+    type_block = ""
+    if example.get("type"):
+        if isinstance(example["type"], list):
+            type_block = "\n".join(example["type"])
+        else:
+            type_block = str(example["type"])
+    
     # return_expr_block = ""
     # if example.get("return_expressions"):
     #     return_expr_block = "\n".join(example["return_expressions"])
@@ -84,9 +84,9 @@ def format_prompt(example):
         "function type, written as an Elixir set-theoretic type annotation. "
         "Respond only with Elixir Types (Descr) syntax.\n\n"
         "### Input:\n"
-        # f"Module: {example['module']}\n"
+        f"Module: {example['module']}\n"
         # f"Function: {example['function']}/{example['arity']}\n"
-        # f"Types in scope:\n{type_block}\n\n"
+        f"Types in scope:\n{type_block}\n\n"
         f"{example['definition']}\n\n"
         # f"Argument patterns:\n{arg_pattern_block}\n\n"
         # f"Return expressions:\n{return_expr_block}\n\n"
