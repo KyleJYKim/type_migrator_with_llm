@@ -52,6 +52,13 @@ python scripts/train_seq2seq.py \
   --output_dir "$OUT_DIR"
 train_elapsed=$((SECONDS - train_start))
 
+# Guard: if training crashed (e.g. OOM), no model is saved -> generate would fail
+# with a confusing "can't load tokenizer" error. Stop here with the real cause.
+if [ ! -f "${OUT_DIR}/config.json" ]; then
+  echo "TRAINING FAILED -- no model saved to ${OUT_DIR} (see the .err log). Skipping generation."
+  exit 1
+fi
+
 echo "==================  GENERATE  ${NAME}  =================="
 gen_start=$SECONDS
 python scripts/generate_seq2seq.py \
