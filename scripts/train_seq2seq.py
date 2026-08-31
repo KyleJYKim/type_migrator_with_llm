@@ -37,27 +37,12 @@ from transformers import (
     Seq2SeqTrainingArguments,
 )
 
+from prompt import build_prompt  # shared prompt/encoder-input format (single source of truth)
+
 
 def load_config(path):
     with open(path) as f:
         return yaml.safe_load(f)
-
-
-def build_prompt(example):
-    """Encoder input. IDENTICAL to train_sft.py's format_prompt (minus the
-    completion), so CodeT5+ and Qwen see the same context."""
-    type_block = ""
-    if example.get("type"):
-        if isinstance(example["type"], list):
-            type_block = "\n".join(example["type"])
-        else:
-            type_block = str(example["type"])
-    return (
-        f"### Module: {example['module']}\n"
-        f"### Types in scope:\n{type_block}\n\n"
-        f"### Definition:\n{example['definition']}\n\n"
-        f"### Elixir type:\n"
-    )
 
 
 def main():

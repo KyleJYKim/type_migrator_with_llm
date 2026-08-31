@@ -36,6 +36,8 @@ from transformers import (
 )
 from trl import SFTConfig, SFTTrainer
 
+from prompt import build_prompt  # shared prompt format (single source of truth)
+
 
 def load_config(path):
     """
@@ -47,53 +49,13 @@ def load_config(path):
 
 
 def format_prompt(example):
-    """
-    Build the training text. 
-    Train on the full text.
-    Each raw data example gets formatted into one big string:
-        • Prompt = the context the model sees (module name, types, function definition)
-        • Completion = the answer the model must learn to produce
-        • `<|endoftext|>` = a special token telling the model "this is where the answer end"
-    """
-    # v1: the prompt carries ONLY the function definition and predicts its
-    # Elixir Type. The extra context blocks (module, types-in-scope, and the
-    # two grounding blocks -- argument patterns / return expressions) are kept
-    # here, commented, for a later variant that adds them back.
-    
-    type_block = ""
-    if example.get("type"):
-        if isinstance(example["type"], list):
-            type_block = "\n".join(example["type"])
-        else:
-            type_block = str(example["type"])
-    
-    # return_expr_block = ""
-    # if example.get("return_expressions"):
-    #     return_expr_block = "\n".join(example["return_expressions"])
-    #
-    # arg_pattern_block = ""
-    # if example.get("argument_patterns"):
-    #     arg_pattern_block = "\n".join(example["argument_patterns"])
+    """Training text = the shared prompt + the target completion + EOS.
 
-    # Instruction-style prompt. MUST stay byte-identical to generate.py's
-    # format_prompt up to the "### Output:\n" boundary -- a train/inference
-    # drift silently degrades generation.
-    prompt = (
-        "### Instruction:\n"
-        "For the given Elixir function definition, infer the most precise correct "
-        "function type, written as an Elixir set-theoretic type annotation. "
-        "Respond only with Elixir Types (Descr) syntax.\n\n"
-        "### Input:\n"
-        f"Module: {example['module']}\n"
-        # f"Function: {example['function']}/{example['arity']}\n"
-        f"Types in scope:\n{type_block}\n\n"
-        f"{example['definition']}\n\n"
-        # f"Argument patterns:\n{arg_pattern_block}\n\n"
-        # f"Return expressions:\n{return_expr_block}\n\n"
-        "### Output:\n"
-    )
-    completion = example["elixir_type"]
-    return {"text": prompt + completion + "<|endoftext|>"}
+    The prompt/encoder-input format lives in prompt.build_prompt (imported),
+    shared with generate.py and the seq2seq scripts so they can never drift;
+    switch prompt variants by flipping the INCLUDE_* flags in prompt.py.
+    """
+    return {"text": build_prompt(example) + example["elixir_type"] + "<|endoftext|>"}
 
 
 def main():

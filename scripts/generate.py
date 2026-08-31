@@ -27,43 +27,10 @@ except ImportError:  # older/newer layouts keep it in the submodule
     from transformers.generation.stopping_criteria import MaxTimeCriteria
 
 
-def format_prompt(example):
-    # Must match train_sft.py's format_prompt exactly -- a train/inference
-    # prompt mismatch would silently degrade generation quality.
-    #
-    # v1: definition-only prompt. The extra context blocks (module, types,
-    # argument patterns, return expressions) are kept here, commented, in
-    # lockstep with train_sft.py, for a later variant that adds them back.
-    
-    type_block = ""
-    if example.get("type"):
-        if isinstance(example["type"], list):
-            type_block = "\n".join(example["type"])
-        else:
-            type_block = str(example["type"])
-    
-    # return_expr_block = ""
-    # if example.get("return_expressions"):
-    #     return_expr_block = "\n".join(example["return_expressions"])
-    #
-    # arg_pattern_block = ""
-    # if example.get("argument_patterns"):
-    #     arg_pattern_block = "\n".join(example["argument_patterns"])
-
-    return (
-        "### Instruction:\n"
-        "For the given Elixir function definition, infer the most precise correct "
-        "function type, written as an Elixir set-theoretic type annotation. "
-        "Respond only with Elixir Types (Descr) syntax.\n\n"
-        "### Input:\n"
-        f"Module: {example['module']}\n"
-        # f"Function: {example['function']}/{example['arity']}\n"
-        f"Types in scope:\n{type_block}\n\n"
-        f"{example['definition']}\n\n"
-        # f"Argument patterns:\n{arg_pattern_block}\n\n"
-        # f"Return expressions:\n{return_expr_block}\n\n"
-        "### Output:\n"
-    )
+# Prompt/encoder-input format is the single source of truth in prompt.py, shared
+# with train_sft.py and the seq2seq scripts so they can never drift. Switch prompt
+# variants by flipping the INCLUDE_* flags in prompt.py.
+from prompt import build_prompt as format_prompt
 
 
 def parse_generated_type(generated_text):

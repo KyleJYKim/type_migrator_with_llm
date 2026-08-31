@@ -6,24 +6,24 @@ output_dir: runs/codet5p_770m
 trust_remote_code: false
 
 seq2seq:
-  max_source_length: 512
-  max_target_length: 256
+  max_source_length: 512    # encoder cap (CodeT5+ architectural max); Qwen sees 1024
+  max_target_length: 512    # decoder: covers the longest type targets the filter keeps
 
 training:
   per_device_train_batch_size: 16
   per_device_eval_batch_size: 16
-  gradient_accumulation_steps: 1     # effective batch 16
-  num_train_epochs: 3
-  learning_rate: 0.0001              # 1e-4: small T5 tolerates a higher LR
+  gradient_accumulation_steps: 1     # effective batch 16 (matches the Qwen run)
+  num_train_epochs: 3                # full-FT T5 needs more than Qwen's 1.5; best-checkpoint on eval_loss picks each model's optimum
+  learning_rate: 0.0001              # 1e-4: small T5 tolerates a higher LR (method-appropriate; Qwen LoRA also 1e-4)
   lr_scheduler_type: cosine
-  warmup_ratio: 0.05
+  warmup_ratio: 0.1                  # matched to the Qwen run
   weight_decay: 0.01
   bf16: true
-  optim: adamw_torch
+  optim: paged_adamw_8bit            # matched to the Qwen run (8-bit Adam state; near-lossless for FT)
   seed: 42
-  eval_steps: 20
-  save_steps: 20
-  save_total_limit: 2
+  eval_steps: 10                     # matched to the Qwen run
+  save_steps: 10
+  save_total_limit: 3
   logging_steps: 5
   report_to: none
   load_best_model_at_end: true
