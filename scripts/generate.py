@@ -49,10 +49,40 @@ def build_grammar_processor(grammar_path, hf_tokenizer):
     """
     from transformers_cfg.grammar_utils import IncrementalGrammarConstraint
     from transformers_cfg.generation.logits_process import GrammarConstrainedLogitsProcessor
+    _ensure_byte_bpe_tokenizer_supported(hf_tokenizer)
     with open(grammar_path) as f:
         grammar_str = f.read()
     constraint = IncrementalGrammarConstraint(grammar_str, "root", hf_tokenizer)
     return GrammarConstrainedLogitsProcessor(constraint)
+
+
+def _ensure_byte_bpe_tokenizer_supported(hf_tokenizer):
+    """transformers-cfg gate-keeps on an exact-type whitelist (SUPPORTED_TOKENIZERS).
+    CodeT5+ uses RobertaTokenizerFast --- byte-level BPE, mechanically identical to the
+    already-supported GPT2TokenizerFast --- but its exact class is absent, so the
+    byte-trie build asserts. Register the tokenizer's class if it's a byte-level BPE
+    fast tokenizer so it flows through the same (correct) GPT2 code path. No-op for
+    Qwen (already whitelisted). Best-effort: never break the run over this."""
+    try:
+        from transformers_cfg.tokenization.middle import TokenizerMiddleMapping as _mm
+    except Exception:
+        return
+    supported = getattr(_mm, "SUPPORTED_TOKENIZERS", None)
+    cls = type(hf_tokenizer)
+    if supported is None or cls in supported:
+        return
+    # Only register byte-level-BPE fast tokenizers (GPT2/RoBERTa family); anything
+    # else genuinely needs its own mapping and must NOT be silently coerced.
+    if not getattr(hf_tokenizer, "is_fast", False):
+        return
+    try:
+        if hasattr(supported, "add"):
+            supported.add(cls)
+        else:  # frozenset -> rebind the module attribute the assertion reads
+            _mm.SUPPORTED_TOKENIZERS = set(supported) | {cls}
+        print(f"(registered {cls.__name__} with transformers-cfg as byte-level BPE)")
+    except Exception as e:
+        print(f"(note: could not register {cls.__name__} with transformers-cfg: {e})")
 
 
 def main():

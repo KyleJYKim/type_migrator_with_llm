@@ -46,10 +46,14 @@ fi
 
 echo "==================  TRAIN  ${NAME}  (seed ${SEED})  =================="
 train_start=$SECONDS
-python scripts/train_seq2seq.py \
-  --config "$CONFIG" \
-  --data_dir "$DATA_DIR" \
-  --output_dir "$OUT_DIR"
+if [ "${SKIP_TRAIN:-0}" = "1" ] && [ -f "${OUT_DIR}/config.json" ]; then
+  echo "SKIP_TRAIN=1 and model exists at ${OUT_DIR} -- skipping training, re-generating only."
+else
+  python scripts/train_seq2seq.py \
+    --config "$CONFIG" \
+    --data_dir "$DATA_DIR" \
+    --output_dir "$OUT_DIR"
+fi
 train_elapsed=$((SECONDS - train_start))
 
 # Guard: if training crashed (e.g. OOM), no model is saved -> generate would fail

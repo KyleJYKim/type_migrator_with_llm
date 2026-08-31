@@ -15,7 +15,7 @@ training:
   per_device_train_batch_size: 4     # 8 OOMs at full FT; 4 halves activations
   per_device_eval_batch_size: 4
   gradient_accumulation_steps: 4     # effective batch 16 (matches the Qwen run)
-  num_train_epochs: 3                # full-FT T5 needs more than Qwen's 1.5; best-checkpoint on eval_loss picks each model's optimum
+  num_train_epochs: 1.2                # full-FT T5 needs more than Qwen's 1.5; best-checkpoint on eval_loss picks each model's optimum
   learning_rate: 0.00005             # 5e-5: standard for full FT of T5-family (method-appropriate)
   lr_scheduler_type: cosine
   warmup_ratio: 0.1                  # matched to the Qwen run
