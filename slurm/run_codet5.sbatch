@@ -19,6 +19,10 @@
 #   #SBATCH --gpus=a100_7g.80gb:1
 #   sbatch run_codet5.sbatch configs/codet5p_2b.yaml
 #
+# Re-generate ONLY (reuse an already-trained model, skip the ~2-4h train) by passing
+# "skiptrain" as the 2nd arg (env vars do NOT survive sbatch on this cluster):
+#   sbatch run_codet5.sbatch configs/codet5p_770m.yaml skiptrain
+#
 # NOTE: decoding is grammar-constrained (--constrain), the SAME descr grammar as
 # the Qwen run, so the two are decode-matched. SMOKE-TEST 770m first: transformers-cfg
 # with the T5 (sentencepiece) tokenizer is less battle-tested than with Qwen's; if the
@@ -46,8 +50,8 @@ fi
 
 echo "==================  TRAIN  ${NAME}  (seed ${SEED})  =================="
 train_start=$SECONDS
-if [ "${SKIP_TRAIN:-0}" = "1" ] && [ -f "${OUT_DIR}/config.json" ]; then
-  echo "SKIP_TRAIN=1 and model exists at ${OUT_DIR} -- skipping training, re-generating only."
+if { [ "${2:-}" = "skiptrain" ] || [ "${SKIP_TRAIN:-0}" = "1" ]; } && [ -f "${OUT_DIR}/config.json" ]; then
+  echo "skiptrain requested and model exists at ${OUT_DIR} -- skipping training, re-generating only."
 else
   python scripts/train_seq2seq.py \
     --config "$CONFIG" \
