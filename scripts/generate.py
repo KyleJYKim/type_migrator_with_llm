@@ -49,88 +49,10 @@ def build_grammar_processor(grammar_path, hf_tokenizer):
     """
     from transformers_cfg.grammar_utils import IncrementalGrammarConstraint
     from transformers_cfg.generation.logits_process import GrammarConstrainedLogitsProcessor
-    _ensure_byte_bpe_tokenizer_supported(hf_tokenizer)   # gate 1: SUPPORTED_TOKENIZERS whitelist
-    _route_unsupported_fast_tokenizer_to_gpt2()          # gate 2: from_hf_tokenizer isinstance dispatch
     with open(grammar_path) as f:
         grammar_str = f.read()
     constraint = IncrementalGrammarConstraint(grammar_str, "root", hf_tokenizer)
     return GrammarConstrainedLogitsProcessor(constraint)
-
-
-def _ensure_byte_bpe_tokenizer_supported(hf_tokenizer):
-    """transformers-cfg gate-keeps on an exact-type whitelist (SUPPORTED_TOKENIZERS).
-    CodeT5+ uses RobertaTokenizerFast --- byte-level BPE, mechanically identical to the
-    already-supported GPT2TokenizerFast --- but its exact class is absent, so the
-    byte-trie build asserts. Register the tokenizer's class if it's a byte-level BPE
-    fast tokenizer so it flows through the same (correct) GPT2 code path. No-op for
-    Qwen (already whitelisted). Best-effort: never break the run over this.
-
-    The whitelist is referenced by several transformers_cfg modules via different
-    import bindings, so we sweep ALL loaded transformers_cfg modules and patch every
-    one that exposes SUPPORTED_TOKENIZERS -- mutating the shared set in place (a single
-    add propagates to all bindings) and rebinding only if it's a frozenset. This is
-    robust to which module the failing assertion actually reads."""
-    # Only register byte-level-BPE fast tokenizers (GPT2/RoBERTa family); anything
-    # else genuinely needs its own mapping and must NOT be silently coerced.
-    if not getattr(hf_tokenizer, "is_fast", False):
-        return
-    cls = type(hf_tokenizer)
-    import sys
-    patched = 0
-    for name, mod in list(sys.modules.items()):
-        if not name.startswith("transformers_cfg") or mod is None:
-            continue
-        supported = getattr(mod, "SUPPORTED_TOKENIZERS", None)
-        # A submodule is ALSO named SUPPORTED_TOKENIZERS (transformers_cfg.tokenization
-        # re-exports it), so restrict to the actual set/frozenset the assertions test.
-        if not isinstance(supported, (set, frozenset)) or cls in supported:
-            continue
-        try:
-            if hasattr(supported, "add"):
-                supported.add(cls)                                  # shared set: one add covers all
-            else:
-                setattr(mod, "SUPPORTED_TOKENIZERS", set(supported) | {cls})
-            patched += 1
-        except Exception as e:
-            print(f"(note: could not patch {name}.SUPPORTED_TOKENIZERS: {e})")
-    if patched:
-        print(f"(registered {cls.__name__} with transformers-cfg as byte-level BPE)")
-    else:
-        print(f"(note: {cls.__name__} not registered -- no writable SUPPORTED_TOKENIZERS "
-              f"found; grammar constraint may still assert)")
-
-
-def _route_unsupported_fast_tokenizer_to_gpt2():
-    """Gate 2: transformers_cfg.tokenization.tokenizer.TCFG_Tokenizer.from_hf_tokenizer
-    dispatches on isinstance and raises NotImplementedError for anything it doesn't list
-    (RobertaTokenizerFast falls through). Its GPT2 handler decodes each token via the HF
-    tokenizer's OWN .decode() -- tokenizer-agnostic -- so it is the correct generic handler
-    for any fast tokenizer. Wrap from_hf_tokenizer to catch the fall-through and route a
-    fast tokenizer to the GPT2 handler. Idempotent; a strict no-op for every tokenizer the
-    original dispatch already handles (Qwen included -- orig succeeds, fallback never runs)."""
-    try:
-        from transformers_cfg.tokenization import tokenizer as _tk
-    except Exception:
-        return
-    TCFG = getattr(_tk, "TCFG_Tokenizer", None)
-    GPT2H = getattr(_tk, "TCFG_GPT2Tokenizer", None)
-    if TCFG is None or GPT2H is None:
-        return
-    if getattr(getattr(TCFG.from_hf_tokenizer, "__func__", None), "_roberta_routed", False):
-        return
-    orig = TCFG.from_hf_tokenizer  # bound classmethod; keeps its own cls
-
-    def _routed(kls, hf_tokenizer):
-        try:
-            return orig(hf_tokenizer)
-        except NotImplementedError:
-            if getattr(hf_tokenizer, "is_fast", False):
-                print(f"(routing {type(hf_tokenizer).__name__} to the GPT2 byte-level handler)")
-                return GPT2H(hf_tokenizer)
-            raise
-
-    _routed._roberta_routed = True
-    TCFG.from_hf_tokenizer = classmethod(_routed)
 
 
 def main():

@@ -23,11 +23,12 @@
 # "skiptrain" as the 2nd arg (env vars do NOT survive sbatch on this cluster):
 #   sbatch run_codet5.sbatch configs/codet5p_770m.yaml skiptrain
 #
-# NOTE: decoding is grammar-constrained (--constrain), the SAME descr grammar as
-# the Qwen run, so the two are decode-matched. SMOKE-TEST 770m first: transformers-cfg
-# with the T5 (sentencepiece) tokenizer is less battle-tested than with Qwen's; if the
-# grammar processor errors on load, drop --constrain and report the caveat instead.
-# The one remaining architectural difference is the 512-token encoder cap (Qwen: 1024).
+# NOTE: decoding is UNCONSTRAINED. transformers-cfg 0.2.7 does not support CodeT5+'s
+# RobertaTokenizerFast, and its GPT2 byte-mapping path is broken on transformers 5.x, so a
+# decode-match would need brittle library patching. CodeT5+ is trained with an explicit EOS
+# to avoid runaway, so raw greedy output is well-formed; report the null (parse-fail) rate as
+# the comparison caveat. The grammar constraint remains a Qwen-side ablation.
+# Other architectural difference: the 512-token encoder cap (Qwen sees 1024).
 CONFIG="${1:-configs/codet5p_770m.yaml}"
 SEED=42
 DATASET="track2_both_pass_expanded"
@@ -74,7 +75,6 @@ python scripts/generate_seq2seq.py \
   --test_file "$TEST" \
   --out_file "${OUT_DIR}/eval_on_common.jsonl" \
   --max_new_tokens 512 \
-  --constrain \
   --trust_remote_code
 gen_elapsed=$((SECONDS - gen_start))
 

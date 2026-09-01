@@ -17,20 +17,14 @@ import sys
 from pathlib import Path
 
 import torch
-from transformers import (
-    AutoModelForSeq2SeqLM, AutoTokenizer, LogitsProcessorList, StoppingCriteriaList,
-)
-try:
-    from transformers import MaxTimeCriteria
-except ImportError:  # older/newer layouts keep it in the submodule
-    from transformers.generation.stopping_criteria import MaxTimeCriteria
+from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 
 # Stream progress live even when stdout is redirected to a SLURM .out file.
 sys.stdout.reconfigure(line_buffering=True)
 
-# Shared prompt (single source of truth) + parsing/grammar reused from the causal-LM path.
+# Shared prompt (single source of truth) + parsing reused from the causal-LM path.
 from prompt import build_prompt as format_prompt
-from generate import parse_generated_type, build_grammar_processor
+from generate import parse_generated_type
 
 
 def main():
@@ -42,15 +36,6 @@ def main():
     ap.add_argument("--n_samples", type=int, default=0)
     ap.add_argument("--trust_remote_code", action="store_true",
                     help="needed for codet5p-2b and larger (custom modeling code)")
-    # Grammar-constrained decoding -- the SAME descr grammar as the Qwen path
-    # (generate.py), so CodeT5+ and Qwen are decode-matched. Constrains the
-    # DECODER tokens; a LogitsProcessor applies to seq2seq generate() unchanged.
-    ap.add_argument("--constrain", action="store_true",
-                    help="constrain decoding to the descr type grammar (needs transformers-cfg)")
-    ap.add_argument("--grammar",
-                    default=str(Path(__file__).resolve().parent / "descr_type.gbnf"))
-    ap.add_argument("--max_time", type=float, default=60.0,
-                    help="seconds per entry before generation is cut (constrained path)")
     args = ap.parse_args()
 
     out_file = args.out_file or Path(args.model_dir) / "predictions.jsonl"
@@ -88,11 +73,6 @@ def main():
     model.to("cuda" if torch.cuda.is_available() else "cpu")
     model.eval()
 
-    grammar_processor = None
-    if args.constrain:
-        print(f"=== Grammar-constrained decoding: {args.grammar} ===")
-        grammar_processor = build_grammar_processor(args.grammar, tok)
-
     with open(args.test_file) as f:
         test = [json.loads(l) for l in f if l.strip()]
     if args.n_samples > 0:
@@ -108,20 +88,13 @@ def main():
             inputs = tok(prompt, return_tensors="pt", truncation=True,
                          max_length=512).to(model.device)
 
-            gen_kwargs = dict(
-                max_new_tokens=args.max_new_tokens,
-                num_beams=1,
-                do_sample=False,
-            )
-            if grammar_processor is not None:
-                # reset the incremental grammar state per entry, and cap wall-clock
-                # so a long constrained decode cannot stall the whole run.
-                grammar_processor.reset()
-                gen_kwargs["logits_processor"] = LogitsProcessorList([grammar_processor])
-                gen_kwargs["stopping_criteria"] = StoppingCriteriaList([MaxTimeCriteria(args.max_time)])
-
             with torch.no_grad():
-                gen = model.generate(**inputs, **gen_kwargs)
+                gen = model.generate(
+                    **inputs,
+                    max_new_tokens=args.max_new_tokens,
+                    num_beams=1,
+                    do_sample=False,
+                )
             # seq2seq output decodes to the TARGET only (no prompt echo).
             decoded = tok.decode(gen[0], skip_special_tokens=True)
             generated_type = parse_generated_type(decoded)
