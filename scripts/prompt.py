@@ -12,6 +12,16 @@ prompt and the completion (`elixir_type` + EOS) is appended by the caller; for
 the encoder-decoder (CodeT5+) run it is the encoder input and `elixir_type` is
 the decoder target. The completion/EOS handling therefore stays in each caller;
 only the prompt is shared.
+
+Layout invariants (keep these when adding a field):
+  * every block is introduced by a `Label:` tag, including the definition --
+    the types block and the definition are both Elixir source, so a blank line
+    alone is not a reliable boundary for the model;
+  * a block whose content is empty is omitted entirely, tag included -- a bare
+    `Types in scope:` with nothing under it teaches the tag to mean "nothing
+    follows";
+  * every block ends in a blank line, so toggling one INCLUDE_* flag does not
+    reflow the others.
 """
 
 INSTRUCTION = (
@@ -21,7 +31,9 @@ INSTRUCTION = (
 )
 
 # Prompt-variant toggles -- flip in this one place to switch every script.
-# v1 = definition only. Current = v1.5 (module + user types).
+# v1   = definition only.
+# v1.5 = module + user types.
+# v1.6 = v1.5 + `Definition:` tag, empty blocks dropped, uniform blank lines.
 INCLUDE_MODULE = True
 INCLUDE_FUNCTION = False
 INCLUDE_TYPES = True
@@ -36,6 +48,12 @@ def _block(example, key):
     return "\n".join(v) if isinstance(v, list) else str(v)
 
 
+def _tagged(parts, label, body):
+    """Append a `label:\\n<body>\\n\\n` block, or nothing if body is empty."""
+    if body:
+        parts.append(f"{label}:\n{body}\n\n")
+
+
 def build_prompt(example):
     """The full prompt / encoder input, up to and including '### Output:\\n'."""
     parts = [
@@ -44,15 +62,27 @@ def build_prompt(example):
         "\n\n",
         "### Input:\n",
     ]
-    if INCLUDE_MODULE:
-        parts.append(f"Module: {example['module']}\n")
-    if INCLUDE_FUNCTION:
-        parts.append(f"Function: {example['function']}/{example['arity']}\n")
+
+    # One-line metadata fields share a single block so that enabling both does
+    # not put a blank line between two one-liners.
+    meta = []
+    if INCLUDE_MODULE and (module := _block(example, "module")):
+        meta.append(f"Module: {module}")
+    if INCLUDE_FUNCTION and (function := _block(example, "function")):
+        meta.append(f"Function: {function}/{example['arity']}")
+    if meta:
+        parts.append("\n".join(meta) + "\n\n")
+
     if INCLUDE_TYPES:
-        parts.append(f"Types in scope:\n{_block(example, 'type')}\n\n")
-    parts.append(f"{example['definition']}\n\n")
+        _tagged(parts, "Types in scope", _block(example, "type"))
+
+    # The definition is the one required field: an example without it is a data
+    # bug, so index rather than .get() and let the KeyError surface.
+    _tagged(parts, "Definition", example["definition"])
+
     if INCLUDE_GROUNDING:
-        parts.append(f"Argument patterns:\n{_block(example, 'argument_patterns')}\n\n")
-        parts.append(f"Return expressions:\n{_block(example, 'return_expressions')}\n\n")
+        _tagged(parts, "Argument patterns", _block(example, "argument_patterns"))
+        _tagged(parts, "Return expressions", _block(example, "return_expressions"))
+
     parts.append("### Output:\n")
     return "".join(parts)

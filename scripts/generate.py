@@ -2,9 +2,8 @@
 Generate type predictions for a fine-tuned causal-LM (Qwen) on test.jsonl and
 write the predictions dataset. This script only predicts; scoring is done by
 separate steps:
-  - the typecheck (type_migrator: inject generated_elixir_type into the real
-    project and recompile), and
-  - the set-theoretic distance (SetTheoreticEvaluator, Descr module).
+  - the typecheck (type_migrator: inject generated_elixir_type into the real project and recompile); and
+  - the set-theoretic compatibility (SetTheoreticEvaluator, Descr module).
 """
 import argparse
 import json
