@@ -1,5 +1,5 @@
 model_name_or_path: Qwen/Qwen2.5-Coder-7B
-output_dir: runs/qwen7b_qlora_v1
+output_dir: runs/qwen2.5_7b_qlora
 
 quantization:
   load_in_4bit: true

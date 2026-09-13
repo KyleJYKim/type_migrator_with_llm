@@ -17,8 +17,11 @@ CONFIG="${1:-configs/qwen7b_qlora.yaml}"
 SEED=42
 DATASET="track2_both_pass_expanded"
 DATA_DIR="data/seed${SEED}/${DATASET}"
-OUT_DIR="runs/seed${SEED}/${DATASET}"
 TEST="${DATA_DIR}/test.jsonl"
+
+NAME=$(basename "$CONFIG" .yaml)
+OUT_DIR=$(python -c 'import sys, yaml; print(yaml.safe_load(open(sys.argv[1])).get("output_dir", ""))' "$CONFIG")
+OUT_DIR="${OUT_DIR:-runs/${NAME}}/seed${SEED}"
 
 eval "$(conda shell.bash hook)"
 conda activate etr

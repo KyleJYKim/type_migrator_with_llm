@@ -33,9 +33,15 @@ CONFIG="${1:-configs/codet5p_770m.yaml}"
 SEED=42
 DATASET="track2_both_pass_expanded"
 DATA_DIR="data/seed${SEED}/${DATASET}"
-NAME=$(basename "$CONFIG" .yaml)
-OUT_DIR="runs/seed${SEED}/${NAME}"
 TEST="${DATA_DIR}/test.jsonl"
+
+# OUT_DIR follows the config's own output_dir, so the config is the single source
+# of truth (train_seq2seq.py falls back to that same key when --output_dir is
+# omitted). Read AFTER the cd: $CONFIG is relative to the project root. Falls back
+# to the config basename if the key is missing; the seed layer is added here.
+NAME=$(basename "$CONFIG" .yaml)
+OUT_DIR=$(python -c 'import sys, yaml; print(yaml.safe_load(open(sys.argv[1])).get("output_dir", ""))' "$CONFIG")
+OUT_DIR="${OUT_DIR:-runs/${NAME}}/seed${SEED}"
 
 eval "$(conda shell.bash hook)"
 conda activate etr
