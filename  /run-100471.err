@@ -1,0 +1,63 @@
+Map:   0%|          | 0/9888 [00:00<?, ? examples/s]Map:   0%|          | 1/9888 [00:00<17:50,  9.23 examples/s]Map:   1%|▏         | 143/9888 [00:00<00:12, 804.39 examples/s]Map:   3%|▎         | 274/9888 [00:00<00:09, 1026.42 examples/s]Map:   4%|▍         | 439/9888 [00:00<00:07, 1266.17 examples/s]Map:   6%|▌         | 598/9888 [00:00<00:06, 1378.57 examples/s]Map:   8%|▊         | 762/9888 [00:00<00:06, 1466.04 examples/s]Map:  10%|▉         | 945/9888 [00:00<00:06, 1361.72 examples/s]Map:  11%|█▏        | 1136/9888 [00:00<00:07, 1138.52 examples/s]Map:  13%|█▎        | 1324/9888 [00:01<00:07, 1171.33 examples/s]Map:  15%|█▍        | 1463/9888 [00:01<00:06, 1220.17 examples/s]Map:  16%|█▌        | 1606/9888 [00:01<00:06, 1268.80 examples/s]Map:  18%|█▊        | 1766/9888 [00:01<00:06, 1350.04 examples/s]Map:  20%|█▉        | 1931/9888 [00:01<00:06, 1253.60 examples/s]Map:  21%|██        | 2062/9888 [00:01<00:07, 1043.33 examples/s]Map:  22%|██▏       | 2218/9888 [00:01<00:06, 1158.93 examples/s]Map:  24%|██▍       | 2365/9888 [00:01<00:06, 1233.99 examples/s]Map:  26%|██▌       | 2545/9888 [00:02<00:06, 1218.31 examples/s]Map:  28%|██▊       | 2723/9888 [00:02<00:05, 1355.83 examples/s]Map:  30%|██▉       | 2926/9888 [00:02<00:04, 1527.64 examples/s]Map:  32%|███▏      | 3140/9888 [00:02<00:05, 1345.47 examples/s]Map:  34%|███▍      | 3375/9888 [00:02<00:04, 1412.25 examples/s]Map:  36%|███▌      | 3547/9888 [00:02<00:04, 1324.80 examples/s]Map:  38%|███▊      | 3726/9888 [00:02<00:04, 1281.87 examples/s]Map:  39%|███▉      | 3874/9888 [00:03<00:05, 1186.54 examples/s]Map:  40%|████      | 4000/9888 [00:03<00:05, 1129.52 examples/s]Map:  42%|████▏     | 4175/9888 [00:03<00:05, 1136.68 examples/s]Map:  43%|████▎     | 4300/9888 [00:03<00:04, 1159.08 examples/s]Map:  45%|████▍     | 4435/9888 [00:03<00:04, 1201.92 examples/s]Map:  46%|████▌     | 4571/9888 [00:03<00:04, 1241.26 examples/s]Map:  48%|████▊     | 4717/9888 [00:03<00:04, 1143.90 examples/s]Map:  49%|████▉     | 4842/9888 [00:03<00:04, 1168.50 examples/s]Map:  50%|█████     | 4962/9888 [00:04<00:04, 1170.33 examples/s]Map:  52%|█████▏    | 5163/9888 [00:04<00:04, 1078.59 examples/s]Map:  54%|█████▎    | 5302/9888 [00:04<00:03, 1149.68 examples/s]Map:  55%|█████▌    | 5482/9888 [00:04<00:03, 1159.63 examples/s]Map:  57%|█████▋    | 5610/9888 [00:04<00:03, 1185.74 examples/s]Map:  58%|█████▊    | 5746/9888 [00:04<00:03, 1227.02 examples/s]Map:  59%|█████▉    | 5872/9888 [00:04<00:03, 1232.72 examples/s]Map:  61%|██████    | 6000/9888 [00:04<00:03, 1070.74 examples/s]Map:  62%|██████▏   | 6142/9888 [00:05<00:03, 1156.23 examples/s]Map:  64%|██████▍   | 6320/9888 [00:05<00:02, 1318.49 examples/s]Map:  66%|██████▌   | 6502/9888 [00:05<00:02, 1274.75 examples/s]Map:  67%|██████▋   | 6643/9888 [00:05<00:02, 1305.76 examples/s]Map:  69%|██████▉   | 6800/9888 [00:05<00:02, 1374.52 examples/s]Map:  71%|███████   | 7000/9888 [00:05<00:02, 1230.36 examples/s]Map:  72%|███████▏  | 7130/9888 [00:05<00:02, 1105.20 examples/s]Map:  74%|███████▎  | 7284/9888 [00:05<00:02, 1205.03 examples/s]Map:  76%|███████▌  | 7477/9888 [00:06<00:01, 1227.67 examples/s]Map:  77%|███████▋  | 7652/9888 [00:06<00:01, 1205.12 examples/s]Map:  79%|███████▊  | 7778/9888 [00:06<00:01, 1216.29 examples/s]Map:  80%|███████▉  | 7906/9888 [00:06<00:01, 1229.15 examples/s]Map:  81%|████████▏ | 8057/9888 [00:06<00:01, 1079.60 examples/s]Map:  83%|████████▎ | 8213/9888 [00:06<00:01, 1063.67 examples/s]Map:  84%|████████▍ | 8340/9888 [00:06<00:01, 1107.68 examples/s]Map:  86%|████████▌ | 8458/9888 [00:07<00:01, 1122.97 examples/s]Map:  87%|████████▋ | 8620/9888 [00:07<00:01, 1103.94 examples/s]Map:  89%|████████▊ | 8768/9888 [00:07<00:01, 1061.45 examples/s]Map:  90%|█████████ | 8923/9888 [00:07<00:00, 1175.51 examples/s]Map:  92%|█████████▏| 9071/9888 [00:07<00:00, 1087.15 examples/s]Map:  93%|█████████▎| 9203/9888 [00:07<00:00, 1140.52 examples/s]Map:  94%|█████████▍| 9343/9888 [00:07<00:00, 1203.94 examples/s]Map:  96%|█████████▌| 9516/9888 [00:07<00:00, 1180.91 examples/s]Map:  98%|█████████▊| 9658/9888 [00:08<00:00, 1239.46 examples/s]Map:  99%|█████████▉| 9817/9888 [00:08<00:00, 1328.88 examples/s]Map: 100%|██████████| 9888/9888 [00:08<00:00, 1195.93 examples/s]
+Map:   0%|          | 0/3484 [00:00<?, ? examples/s]Map:   4%|▍         | 147/3484 [00:00<00:02, 1441.43 examples/s]Map:  10%|▉         | 337/3484 [00:00<00:02, 1315.63 examples/s]Map:  14%|█▎        | 477/3484 [00:00<00:02, 1344.44 examples/s]Map:  18%|█▊        | 629/3484 [00:00<00:02, 1401.88 examples/s]Map:  22%|██▏       | 773/3484 [00:00<00:01, 1410.51 examples/s]Map:  29%|██▊       | 996/3484 [00:00<00:01, 1436.79 examples/s]Map:  34%|███▍      | 1179/3484 [00:00<00:01, 1339.06 examples/s]Map:  39%|███▉      | 1361/3484 [00:01<00:01, 1292.57 examples/s]Map:  44%|████▍     | 1546/3484 [00:01<00:01, 1269.63 examples/s]Map:  50%|█████     | 1745/3484 [00:01<00:01, 1285.64 examples/s]Map:  55%|█████▍    | 1914/3484 [00:01<00:01, 1230.42 examples/s]Map:  59%|█████▉    | 2070/3484 [00:01<00:01, 1132.62 examples/s]Map:  63%|██████▎   | 2195/3484 [00:01<00:01, 1155.58 examples/s]Map:  67%|██████▋   | 2326/3484 [00:01<00:00, 1187.69 examples/s]Map:  71%|███████   | 2473/3484 [00:01<00:00, 1114.70 examples/s]Map:  75%|███████▍  | 2606/3484 [00:02<00:00, 1166.23 examples/s]Map:  79%|███████▉  | 2759/3484 [00:02<00:00, 1259.15 examples/s]Map:  83%|████████▎ | 2902/3484 [00:02<00:00, 1301.08 examples/s]Map:  88%|████████▊ | 3066/3484 [00:02<00:00, 1183.94 examples/s]Map:  92%|█████████▏| 3222/3484 [00:02<00:00, 1277.41 examples/s]Map:  97%|█████████▋| 3369/3484 [00:02<00:00, 1326.97 examples/s]Map: 100%|██████████| 3484/3484 [00:02<00:00, 1262.36 examples/s]
+  0%|          | 0/1854 [00:00<?, ?it/s]Traceback (most recent call last):
+  File "/home/kimjuyoung/elixir_types_trainer/type_migrator_with_llm/scripts/train_seq2seq.py", line 193, in <module>
+    main()
+  File "/home/kimjuyoung/elixir_types_trainer/type_migrator_with_llm/scripts/train_seq2seq.py", line 186, in main
+    trainer.train()
+  File "/home/kimjuyoung/.conda/envs/etr/lib/python3.11/site-packages/transformers/trainer.py", line 2123, in train
+    return inner_training_loop(
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/home/kimjuyoung/.conda/envs/etr/lib/python3.11/site-packages/transformers/trainer.py", line 2481, in _inner_training_loop
+    tr_loss_step = self.training_step(model, inputs, num_items_in_batch)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/kimjuyoung/.conda/envs/etr/lib/python3.11/site-packages/transformers/trainer.py", line 3579, in training_step
+    loss = self.compute_loss(model, inputs, num_items_in_batch=num_items_in_batch)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/kimjuyoung/.conda/envs/etr/lib/python3.11/site-packages/transformers/trainer.py", line 3633, in compute_loss
+    outputs = model(**inputs)
+              ^^^^^^^^^^^^^^^
+  File "/home/kimjuyoung/.conda/envs/etr/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1553, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/kimjuyoung/.conda/envs/etr/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1562, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/kimjuyoung/.conda/envs/etr/lib/python3.11/site-packages/accelerate/utils/operations.py", line 820, in forward
+    return model_forward(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/kimjuyoung/.conda/envs/etr/lib/python3.11/site-packages/accelerate/utils/operations.py", line 808, in __call__
+    return convert_to_fp32(self.model_forward(*args, **kwargs))
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/kimjuyoung/.conda/envs/etr/lib/python3.11/site-packages/torch/amp/autocast_mode.py", line 43, in decorate_autocast
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/kimjuyoung/.conda/envs/etr/lib/python3.11/site-packages/transformers/models/t5/modeling_t5.py", line 1927, in forward
+    loss = loss_fct(lm_logits.view(-1, lm_logits.size(-1)), labels.view(-1))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/kimjuyoung/.conda/envs/etr/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1553, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/kimjuyoung/.conda/envs/etr/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1562, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/kimjuyoung/.conda/envs/etr/lib/python3.11/site-packages/torch/nn/modules/loss.py", line 1188, in forward
+    return F.cross_entropy(input, target, weight=self.weight,
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/kimjuyoung/.conda/envs/etr/lib/python3.11/site-packages/torch/nn/functional.py", line 3104, in cross_entropy
+    return torch._C._nn.cross_entropy_loss(input, target, weight, _Reduction.get_enum(reduction), ignore_index, label_smoothing)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 534.00 MiB. GPU 0 has a total capacity of 39.25 GiB of which 9.94 MiB is free. Including non-PyTorch memory, this process has 39.13 GiB memory in use. Of the allocated memory 38.60 GiB is allocated by PyTorch, and 315.53 MiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)
+  0%|          | 0/1854 [00:02<?, ?it/s]
+Traceback (most recent call last):
+  File "/home/kimjuyoung/elixir_types_trainer/type_migrator_with_llm/scripts/generate_seq2seq.py", line 154, in <module>
+    main()
+  File "/home/kimjuyoung/elixir_types_trainer/type_migrator_with_llm/scripts/generate_seq2seq.py", line 59, in main
+    tok = AutoTokenizer.from_pretrained(args.model_dir, trust_remote_code=args.trust_remote_code)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/kimjuyoung/.conda/envs/etr/lib/python3.11/site-packages/transformers/models/auto/tokenization_auto.py", line 939, in from_pretrained
+    return tokenizer_class_fast.from_pretrained(pretrained_model_name_or_path, *inputs, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/kimjuyoung/.conda/envs/etr/lib/python3.11/site-packages/transformers/tokenization_utils_base.py", line 2197, in from_pretrained
+    raise EnvironmentError(
+OSError: Can't load tokenizer for 'runs/seed42/codet5p_770m'. If you were trying to load it from 'https://huggingface.co/models', make sure you don't have a local directory with the same name. Otherwise, make sure 'runs/seed42/codet5p_770m' is the correct path to a directory containing all relevant files for a T5TokenizerFast tokenizer.

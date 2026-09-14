@@ -1,0 +1,124 @@
+==================  GENERATE   track1_no_gradual  (common test)  ==================
+=== Loading base model: Qwen/Qwen2.5-Coder-7B ===
+=== Loading adapter: runs/track1_no_gradual ===
+=== Grammar-constrained decoding: /home/kimjuyoung/elixir_types_trainer/type_migrator_with_llm/scripts/descr_type.gbnf ===
+=== Generating predictions for 889 entries ===
+  [20/889] generated
+  [40/889] generated
+  [60/889] generated
+  [80/889] generated
+  [100/889] generated
+  [120/889] generated
+  [140/889] generated
+  [160/889] generated
+  [180/889] generated
+  [200/889] generated
+  [220/889] generated
+  [240/889] generated
+  [260/889] generated
+  [280/889] generated
+  [300/889] generated
+  [320/889] generated
+  [340/889] generated
+  [360/889] generated
+  [380/889] generated
+  [400/889] generated
+  [420/889] generated
+  [440/889] generated
+  [460/889] generated
+  [480/889] generated
+  [500/889] generated
+  [520/889] generated
+  [540/889] generated
+  [560/889] generated
+  [580/889] generated
+  [600/889] generated
+  [620/889] generated
+  [640/889] generated
+  [660/889] generated
+  [680/889] generated
+  [700/889] generated
+  [720/889] generated
+  [740/889] generated
+  [760/889] generated
+  [780/889] generated
+  [800/889] generated
+  [820/889] generated
+  [840/889] generated
+  [860/889] generated
+  [880/889] generated
+
+=== Done ===
+  Total:                              889
+  Over budget (ref > 1024 tok): 0
+  Saved to: runs/track1_no_gradual/eval_on_common.jsonl
+==================  GENERATE   track2_both_pass  (common test)  ==================
+=== Loading base model: Qwen/Qwen2.5-Coder-7B ===
+=== Loading adapter: runs/track2_both_pass ===
+=== Grammar-constrained decoding: /home/kimjuyoung/elixir_types_trainer/type_migrator_with_llm/scripts/descr_type.gbnf ===
+=== Generating predictions for 889 entries ===
+  [20/889] generated
+  [40/889] generated
+  [60/889] generated
+  [80/889] generated
+  [100/889] generated
+  [120/889] generated
+  [140/889] generated
+  [160/889] generated
+  [180/889] generated
+  [200/889] generated
+  [220/889] generated
+  [240/889] generated
+  [260/889] generated
+  [280/889] generated
+  [300/889] generated
+  [320/889] generated
+  [340/889] generated
+  [360/889] generated
+  [380/889] generated
+  [400/889] generated
+  [420/889] generated
+  [440/889] generated
+  [460/889] generated
+  [480/889] generated
+  [500/889] generated
+  [520/889] generated
+  [540/889] generated
+  [560/889] generated
+  [580/889] generated
+  [600/889] generated
+  [620/889] generated
+  [640/889] generated
+  [660/889] generated
+  [680/889] generated
+  [700/889] generated
+  [720/889] generated
+  [740/889] generated
+  [760/889] generated
+  [780/889] generated
+  [800/889] generated
+  [820/889] generated
+  [840/889] generated
+  [860/889] generated
+  [880/889] generated
+
+=== Done ===
+  Total:                              889
+  Over budget (ref > 1024 tok): 0
+  Saved to: runs/track2_both_pass/eval_on_common.jsonl
+==================  COMPARISON  ==================
+subset         adapter                        N       EM%       TC% safe&prec% emit_dyn%
+----------------------------------------------------------------------------------------
+overall        track1_no_gradual            889      20.6       0.0       0.0       0.0
+overall        track2_both_pass             889      30.3       0.0       0.0      48.7
+
+----------------------------------------------------------------------------------------
+dynamic-free   track1_no_gradual            485      37.7       0.0       0.0       0.0
+dynamic-free   track2_both_pass             485      38.6       0.0       0.0      21.0
+
+----------------------------------------------------------------------------------------
+with-dynamic   track1_no_gradual            404       0.0       0.0       0.0       0.0
+with-dynamic   track2_both_pass             404      20.3       0.0       0.0      81.9
+
+Legend: EM exact-match | TC typecheck-accept | safe&prec typecheck-accept WITHOUT dynamic() (genuine safety) | emit_dyn share of predictions containing dynamic()
+Done. Per-adapter results: runs/*/eval_on_common.jsonl

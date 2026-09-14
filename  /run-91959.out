@@ -1,0 +1,17 @@
+==================  GENERATE   track1_no_gradual  (common test)  ==================
+=== Loading base model: Qwen/Qwen2.5-Coder-7B ===
+=== Loading adapter: runs/track1_no_gradual ===
+=== Grammar-constrained decoding: /home/kimjuyoung/elixir_types_trainer/type_migrator_with_llm/scripts/descr_type.gbnf ===
+=== Generating predictions for 889 entries ===
+  [20/889] generated
+  [40/889] generated
+  [60/889] generated
+  [80/889] generated
+  [100/889] generated
+  [120/889] generated
+  [140/889] generated
+  [160/889] generated
+  [180/889] generated
+  [200/889] generated
+  [220/889] generated
+  [240/889] generated

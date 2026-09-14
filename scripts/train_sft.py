@@ -177,6 +177,8 @@ def main():
         save_strategy="steps",
         save_steps=cfg["training"]["save_steps"],
         save_total_limit=cfg["training"]["save_total_limit"],
+        load_best_model_at_end=cfg["training"].get("load_best_model_at_end", False),
+        metric_for_best_model=cfg["training"].get("metric_for_best_model", "eval_loss"),
         logging_steps=cfg["training"]["logging_steps"],
         report_to=cfg["training"]["report_to"],
         dataset_text_field="text",

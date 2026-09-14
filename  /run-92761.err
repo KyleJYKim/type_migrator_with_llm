@@ -1,0 +1,4 @@
+slurmstepd-node01: error: container_p_join: open failed for /scratch/node01/92761/.ns: No such file or directory
+slurmstepd-node01: error: container_g_join failed: 92761
+slurmstepd-node01: error: exec_wait_signal_child: write(fd:14) to unblock task 0 failed
+slurmstepd-node01: error: *** JOB 92761 ON node01 CANCELLED AT 2026-07-19T23:29:30 DUE TO JOB REQUEUE ***

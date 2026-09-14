@@ -1,0 +1,9 @@
+==================  TRAIN  codet5p_770m  (seed 42)  ==================
+skiptrain requested and model exists at runs/seed42/codet5p_770m -- skipping training, re-generating only.
+==================  GENERATE  codet5p_770m  ==================
+=== Loading seq2seq model: runs/seed42/codet5p_770m ===
+=== Grammar-constrained decoding: /home/kimjuyoung/elixir_types_trainer/type_migrator_with_llm/scripts/descr_type.gbnf ===
+(registered RobertaTokenizerFast with transformers-cfg as byte-level BPE)
+(routing RobertaTokenizerFast to the GPT2 byte-level handler)
+==================  COMPLETION CHECK  ==================
+GENERATION INCOMPLETE -- output missing.

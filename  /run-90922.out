@@ -1,0 +1,118 @@
+==================  GENERATE   track1_no_gradual  (common test)  ==================
+=== Loading base model: Qwen/Qwen2.5-Coder-7B ===
+=== Loading adapter: runs/track1_no_gradual ===
+=== Generating predictions for 852 entries ===
+  [20/852] generated
+  [40/852] generated
+  [60/852] generated
+  [80/852] generated
+  [100/852] generated
+  [120/852] generated
+  [140/852] generated
+  [160/852] generated
+  [180/852] generated
+  [200/852] generated
+  [220/852] generated
+  [240/852] generated
+  [260/852] generated
+  [280/852] generated
+  [300/852] generated
+  [320/852] generated
+  [340/852] generated
+  [360/852] generated
+  [380/852] generated
+  [400/852] generated
+  [420/852] generated
+  [440/852] generated
+  [460/852] generated
+  [480/852] generated
+  [500/852] generated
+  [520/852] generated
+  [540/852] generated
+  [560/852] generated
+  [580/852] generated
+  [600/852] generated
+  [620/852] generated
+  [640/852] generated
+  [660/852] generated
+  [680/852] generated
+  [700/852] generated
+  [720/852] generated
+  [740/852] generated
+  [760/852] generated
+  [780/852] generated
+  [800/852] generated
+  [820/852] generated
+  [840/852] generated
+
+=== Done ===
+  Total:                              852
+  Over budget (ref > 1024 tok): 0
+  Saved to: runs/track1_no_gradual/eval_on_common.jsonl
+==================  GENERATE   track2_both_pass  (common test)  ==================
+=== Loading base model: Qwen/Qwen2.5-Coder-7B ===
+=== Loading adapter: runs/track2_both_pass ===
+=== Generating predictions for 852 entries ===
+  [20/852] generated
+  [40/852] generated
+  [60/852] generated
+  [80/852] generated
+  [100/852] generated
+  [120/852] generated
+  [140/852] generated
+  [160/852] generated
+  [180/852] generated
+  [200/852] generated
+  [220/852] generated
+  [240/852] generated
+  [260/852] generated
+  [280/852] generated
+  [300/852] generated
+  [320/852] generated
+  [340/852] generated
+  [360/852] generated
+  [380/852] generated
+  [400/852] generated
+  [420/852] generated
+  [440/852] generated
+  [460/852] generated
+  [480/852] generated
+  [500/852] generated
+  [520/852] generated
+  [540/852] generated
+  [560/852] generated
+  [580/852] generated
+  [600/852] generated
+  [620/852] generated
+  [640/852] generated
+  [660/852] generated
+  [680/852] generated
+  [700/852] generated
+  [720/852] generated
+  [740/852] generated
+  [760/852] generated
+  [780/852] generated
+  [800/852] generated
+  [820/852] generated
+  [840/852] generated
+
+=== Done ===
+  Total:                              852
+  Over budget (ref > 1024 tok): 0
+  Saved to: runs/track2_both_pass/eval_on_common.jsonl
+==================  COMPARISON  ==================
+subset         adapter                        N       EM%       TC% safe&prec% emit_dyn%
+----------------------------------------------------------------------------------------
+overall        track1_no_gradual            852       8.2       0.0       0.0       0.0
+overall        track2_both_pass             852      13.3       0.0       0.0      70.8
+
+----------------------------------------------------------------------------------------
+dynamic-free   track1_no_gradual            434      16.1       0.0       0.0       0.0
+dynamic-free   track2_both_pass             434      17.1       0.0       0.0      54.4
+
+----------------------------------------------------------------------------------------
+with-dynamic   track1_no_gradual            418       0.0       0.0       0.0       0.0
+with-dynamic   track2_both_pass             418       9.3       0.0       0.0      87.8
+
+Legend: EM exact-match | TC typecheck-accept | safe&prec typecheck-accept WITHOUT dynamic() (genuine safety) | emit_dyn share of predictions containing dynamic()
+Done. Per-adapter results: runs/*/eval_on_common.jsonl

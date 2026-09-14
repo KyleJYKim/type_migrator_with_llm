@@ -1,0 +1,18 @@
+Traceback (most recent call last):
+  File "/home/kimjuyoung/elixir_types_trainer/type_migrator_with_llm/scripts/generate_seq2seq.py", line 154, in <module>
+    main()
+  File "/home/kimjuyoung/elixir_types_trainer/type_migrator_with_llm/scripts/generate_seq2seq.py", line 94, in main
+    grammar_processor = build_grammar_processor(args.grammar, tok)
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/kimjuyoung/elixir_types_trainer/type_migrator_with_llm/scripts/generate.py", line 56, in build_grammar_processor
+    constraint = IncrementalGrammarConstraint(grammar_str, "root", hf_tokenizer)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/kimjuyoung/.conda/envs/etr/lib/python3.11/site-packages/transformers_cfg/token_grammar_recognizer.py", line 132, in __init__
+    super().__init__(
+  File "/home/kimjuyoung/.conda/envs/etr/lib/python3.11/site-packages/transformers_cfg/token_grammar_recognizer.py", line 38, in __init__
+    self.byte_trie = ByteTrie.from_tokenizer(tokenizer)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/kimjuyoung/.conda/envs/etr/lib/python3.11/site-packages/transformers_cfg/tokenization/byte_trie.py", line 62, in from_tokenizer
+    byte_repr = mapping.map(token_id)
+                ^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'map'
