@@ -200,6 +200,14 @@ def main():
     which might be just a few hundred MB instead of 14GB.
     """
     trainer.train()
+    # Verify best-checkpoint selection actually took effect. With
+    # load_best_model_at_end=True the model in memory here should be the best
+    # checkpoint (not the final weights); if best_model_checkpoint is None the
+    # reload did NOT happen (e.g. the best checkpoint was rotated out by
+    # save_total_limit) and save_model() below would persist the final weights.
+    print(f"=== best_model_checkpoint={trainer.state.best_model_checkpoint} "
+          f"best_metric(eval_loss)={trainer.state.best_metric} "
+          f"global_step={trainer.state.global_step} ===")
     trainer.save_model(output_dir)
     tokenizer.save_pretrained(output_dir)
     print(f"=== Done. Adapter saved to {output_dir} ===")

@@ -18,7 +18,7 @@ training:
   per_device_eval_batch_size: 4
   gradient_accumulation_steps: 8
   num_train_epochs: 1.2
-  learning_rate: 0.0002              # LoRA tolerates a higher LR than full FT; tuned for Qwen's own best (not matched to CodeT5+)
+  learning_rate: 0.0001              # reverted from 2e-4 (2e-4 was worse: val 0.886 best/0.919 final vs 0.883/0.902; compat 37.1% vs 39.5%)
   lr_scheduler_type: cosine
   warmup_ratio: 0.1
   weight_decay: 0.01
@@ -29,7 +29,7 @@ training:
   seed: 42
   eval_steps: 10                     # == save_steps so every eval is a best-checkpoint candidate
   save_steps: 10                     # ~17 evals over the ~175-step run (was 5/10: eval was 72% of wall-clock)
-  save_total_limit: 3
+  save_total_limit: null             # keep all checkpoints: Qwen's best val is early (~epoch 0.34), must survive for load_best_model_at_end
   logging_steps: 1
   report_to: none
   load_best_model_at_end: True
