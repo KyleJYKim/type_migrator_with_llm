@@ -29,7 +29,7 @@ training:
   seed: 42
   eval_steps: 10                     # == save_steps so every eval is a best-checkpoint candidate
   save_steps: 10                     # ~17 evals over the ~175-step run (was 5/10: eval was 72% of wall-clock)
-  save_total_limit: null             # keep all checkpoints: Qwen's best val is early (~epoch 0.34), must survive for load_best_model_at_end
+  save_total_limit: 3                # best checkpoint is protected by load_best_model_at_end even at a small limit
   logging_steps: 1
   report_to: none
   load_best_model_at_end: True

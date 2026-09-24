@@ -29,7 +29,9 @@ except ImportError:  # older/newer layouts keep it in the submodule
 # Prompt/encoder-input format is the single source of truth in prompt.py, shared
 # with train_sft.py and the seq2seq scripts so they can never drift. Switch prompt
 # variants by flipping the INCLUDE_* flags in prompt.py.
+import prompt
 from prompt import build_prompt as format_prompt
+from prompt_logger import GenerationPromptLog, write_manifest
 
 
 def parse_generated_type(generated_text):
@@ -122,7 +124,27 @@ def main():
 
     over_budget_count = 0
 
-    with open(out_file, "w") as fout:
+    # Prompts are logged beside the predictions, with the raw continuation kept
+    # next to the parsed type, so a parsing artefact is distinguishable from a
+    # bad prediction after the fact.
+    log_dir = Path(out_file).parent
+    write_manifest(
+        log_dir, prompt,
+        phase="generate:causal",
+        extra={
+            "adapter_dir": args.adapter_dir,
+            "base_model": args.base_model,
+            "test_file": args.test_file,
+            "out_file": str(out_file),
+            "entries": n,
+            "constrained_decoding": bool(args.constrain),
+            "grammar": args.grammar if args.constrain else None,
+            "max_new_tokens": args.max_new_tokens,
+        },
+        example=format_prompt(test[0]) if test else None,
+    )
+
+    with open(out_file, "w") as fout, GenerationPromptLog(log_dir) as plog:
         for i, ex in enumerate(test):
             prompt = format_prompt(ex)
             inputs = tok(prompt, return_tensors="pt").to(model.device)
@@ -153,7 +175,11 @@ def main():
                 gen = model.generate(**inputs, **gen_kwargs)
             full = tok.decode(gen[0], skip_special_tokens=False)
             prompt_len = len(tok.decode(inputs.input_ids[0], skip_special_tokens=False))
-            generated_type = parse_generated_type(full[prompt_len:])
+            raw_output = full[prompt_len:]
+            generated_type = parse_generated_type(raw_output)
+
+            plog.write(index=i, prompt=prompt, raw_output=raw_output,
+                       parsed=generated_type, reference=ex.get("elixir_type"), entry=ex)
 
             reference = ex.get("elixir_type") or ""
             # A reference longer than the generation budget cannot be emitted in full

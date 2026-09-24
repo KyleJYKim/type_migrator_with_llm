@@ -37,7 +37,9 @@ from transformers import (
     Seq2SeqTrainingArguments,
 )
 
+import prompt
 from prompt import build_prompt  # shared prompt/encoder-input format (single source of truth)
+from prompt_logger import LazyTexts, log_training_prompts, write_manifest
 
 
 def load_config(path):
@@ -136,6 +138,25 @@ def main():
     print(f"Train: {len(ds['train'])}, Val: {len(ds['validation'])}")
     print(f"Sample input ids len: {len(ds['train'][0]['input_ids'])}, "
           f"label len: {len(ds['train'][0]['labels'])}")
+
+    # Preserve what this run actually trained on. Encoder input and decoder
+    # target are logged as separate fields, matching how the model is fed.
+    render = lambda ex: {"encoder_input": build_prompt(ex), "target": ex["elixir_type"]}
+    write_manifest(
+        output_dir, prompt,
+        phase="train:seq2seq",
+        extra={
+            "data_dir": str(data_dir),
+            "config": args.config,
+            "model": cfg["model_name_or_path"],
+            "train_examples": len(ds["train"]),
+            "val_examples": len(ds["validation"]),
+            "max_source_length": max_src,
+            "max_target_length": max_tgt,
+        },
+        example=render(raw["train"][0]),
+    )
+    log_training_prompts(output_dir, LazyTexts(raw["train"], render), seed=tr["seed"])
 
     collator = DataCollatorForSeq2Seq(tokenizer, model=model)
 

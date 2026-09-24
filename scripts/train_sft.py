@@ -36,7 +36,9 @@ from transformers import (
 )
 from trl import SFTConfig, SFTTrainer
 
+import prompt
 from prompt import build_prompt  # shared prompt format (single source of truth)
+from prompt_logger import log_training_prompts, write_manifest
 
 
 def load_config(path):
@@ -145,6 +147,25 @@ def main():
 
     print(f"Train: {len(ds['train'])}, Val: {len(ds['validation'])}")
     print(f"Sample text[0]:\n{ds['train'][0]['text'][:600]}")
+
+    # Preserve what this run actually trained on -- the format in effect (with a
+    # hash of prompt.py, so a later change to the prompt is detectable) and a
+    # sample of the exact texts. Written before training so they survive a run
+    # that fails or is cut short.
+    write_manifest(
+        output_dir, prompt,
+        phase="train:sft",
+        extra={
+            "data_dir": str(data_dir),
+            "config": args.config,
+            "model": cfg["model_name_or_path"],
+            "train_examples": len(ds["train"]),
+            "val_examples": len(ds["validation"]),
+            "dropped_over_length": dropped,
+        },
+        example=ds["train"][0]["text"],
+    )
+    log_training_prompts(output_dir, ds["train"]["text"], seed=cfg["training"]["seed"])
 
     # Trainer: Training hyperparameters
     """

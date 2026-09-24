@@ -30,6 +30,18 @@ INSTRUCTION = (
     "Respond only with Elixir Types (Descr) syntax."
 )
 
+# The supervised target, and the field the `Types in scope` block reads.
+#
+# TYPES_FIELD is `translated_type`, NOT `type`. An entry's `type` field holds
+# the @type declarations as they appear in the source -- TypeSpec syntax -- so
+# using it here had this track reading its context in one notation while writing
+# its answer in another. `translated_type` is the same declarations rendered as
+# Elixir Types (added by `mix translate_dataset_types`), which matches the
+# target. The TypeSpec track keeps reading `type`, where source syntax is what
+# matches ITS target.
+TARGET_FIELD = "elixir_type"
+TYPES_FIELD = "translated_type"
+
 # Prompt-variant toggles -- flip in this one place to switch every script.
 # v1   = definition only.
 # v1.5 = module + user types.
@@ -54,6 +66,27 @@ def _tagged(parts, label, body):
         parts.append(f"{label}:\n{body}\n\n")
 
 
+def _types_block(example):
+    """The types in scope, in Elixir Types notation.
+
+    Fails loudly on a dataset built before the translation existed rather than
+    falling back to the source-syntax `type` field: that fallback is the bug
+    this field was added to fix, and silently training on the wrong notation
+    costs a full run to discover.
+    """
+    if TYPES_FIELD in example:
+        return _block(example, TYPES_FIELD)
+    if example.get("type"):
+        raise KeyError(
+            f"Entry carries 'type' but no {TYPES_FIELD!r}: this dataset predates the "
+            "type-in-scope translation. Rebuild it with\n"
+            "    mix translate_dataset_types data/dataset.jsonl\n"
+            "    mv data/dataset.with_translated_types.jsonl data/dataset.jsonl\n"
+            "    python scripts/prepare_data.py 42"
+        )
+    return ""
+
+
 def build_prompt(example):
     """The full prompt / encoder input, up to and including '### Output:\\n'."""
     parts = [
@@ -74,7 +107,7 @@ def build_prompt(example):
         parts.append("\n".join(meta) + "\n\n")
 
     if INCLUDE_TYPES:
-        _tagged(parts, "Types in scope", _block(example, "type"))
+        _tagged(parts, "Types in scope", _types_block(example))
 
     # The definition is the one required field: an example without it is a data
     # bug, so index rather than .get() and let the KeyError surface.

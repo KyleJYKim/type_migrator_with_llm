@@ -6,5 +6,6 @@ __pycache__/
 .env
 wandb/
 data/
+data/seed42
 data_backup_20260614_1605/
 data_backup_pre_repipeline/

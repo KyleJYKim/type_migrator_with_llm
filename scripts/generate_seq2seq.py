@@ -23,8 +23,10 @@ from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 sys.stdout.reconfigure(line_buffering=True)
 
 # Shared prompt (single source of truth) + parsing reused from the causal-LM path.
+import prompt
 from prompt import build_prompt as format_prompt
 from generate import parse_generated_type
+from prompt_logger import GenerationPromptLog, write_manifest
 
 
 def main():
@@ -82,7 +84,26 @@ def main():
 
     over_budget_count = 0
 
-    with open(out_file, "w") as fout:
+    # Same logging as the causal generator. The prompt is recorded BEFORE the
+    # encoder's 512-token truncation below, so a silently shortened input is
+    # visible by comparing the log against that cap.
+    log_dir = Path(out_file).parent
+    write_manifest(
+        log_dir, prompt,
+        phase="generate:seq2seq",
+        extra={
+            "model_dir": args.model_dir,
+            "test_file": args.test_file,
+            "out_file": str(out_file),
+            "entries": n,
+            "constrained_decoding": False,
+            "max_new_tokens": args.max_new_tokens,
+            "max_source_length": 512,
+        },
+        example=format_prompt(test[0]) if test else None,
+    )
+
+    with open(out_file, "w") as fout, GenerationPromptLog(log_dir) as plog:
         for i, ex in enumerate(test):
             prompt = format_prompt(ex)
             inputs = tok(prompt, return_tensors="pt", truncation=True,
@@ -98,6 +119,9 @@ def main():
             # seq2seq output decodes to the TARGET only (no prompt echo).
             decoded = tok.decode(gen[0], skip_special_tokens=True)
             generated_type = parse_generated_type(decoded)
+
+            plog.write(index=i, prompt=prompt, raw_output=decoded,
+                       parsed=generated_type, reference=ex.get("elixir_type"), entry=ex)
 
             reference = ex.get("elixir_type") or ""
             ref_token_len = len(tok(reference).input_ids)
