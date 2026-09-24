@@ -78,11 +78,22 @@ def _types_block(example):
         return _block(example, TYPES_FIELD)
     if example.get("type"):
         raise KeyError(
-            f"Entry carries 'type' but no {TYPES_FIELD!r}: this dataset predates the "
-            "type-in-scope translation. Rebuild it with\n"
+            f"Entry carries 'type' but no {TYPES_FIELD!r}: these splits predate the "
+            "type-in-scope translation.\n"
+            "\n"
+            "  On the machine with the Elixir toolchain, rebuild them:\n"
             "    mix translate_dataset_types data/dataset.jsonl\n"
             "    mv data/dataset.with_translated_types.jsonl data/dataset.jsonl\n"
-            "    python scripts/prepare_data.py 42"
+            "    python scripts/prepare_data.py 42\n"
+            "\n"
+            "  On a training node, COPY the rebuilt splits across -- do NOT run\n"
+            "  prepare_data.py here. It would regenerate them from this machine's\n"
+            "  dataset.jsonl, which lacks the field, overwriting good splits:\n"
+            "    rsync -av <local>/data/seed42/<split-dir> $PWD/data/seed42/\n"
+            "\n"
+            "  Verify with:\n"
+            "    head -1 data/seed42/<split-dir>/train.jsonl | "
+            f"python -c \"import json,sys; print({TYPES_FIELD!r} in json.load(sys.stdin))\""
         )
     return ""
 

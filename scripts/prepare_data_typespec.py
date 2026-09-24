@@ -31,7 +31,14 @@ from collections import defaultdict
 from pathlib import Path
 
 SEED = int(sys.argv[1]) if len(sys.argv) > 1 else 42
-DATASET = "data/dataset.jsonl"
+
+# Read the SAME source file as prepare_data.py, including its preference for the
+# translated dataset. This track's prompt reads `type` and does not need
+# `translated_type`, but both tracks must be cut from one file or their splits
+# can diverge -- and comparability of the two test sets is the whole point.
+TRANSLATED_DATASET = "data/dataset.with_translated_types.jsonl"
+ORIGINAL_DATASET = "data/dataset.jsonl"
+DATASET = TRANSLATED_DATASET if Path(TRANSLATED_DATASET).is_file() else ORIGINAL_DATASET
 DATA_DIR = Path(f"data/seed{SEED}")
 OUT_DIR = DATA_DIR / "typespec_both_pass"
 
@@ -115,6 +122,7 @@ def main():
         entries = [json.loads(l) for l in f if l.strip()]
 
     pool = [e for e in entries if eligible(e)]
+    print(f"Dataset              : {DATASET}")
     print(f"Total entries          : {len(entries)}")
     print(f"both_pass + length ok  : {len(pool)}")
 

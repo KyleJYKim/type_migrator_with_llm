@@ -24,7 +24,15 @@ from collections import defaultdict
 from pathlib import Path
 
 SEED = int(sys.argv[1]) if len(sys.argv) > 1 else 42
-DATASET = "data/dataset.jsonl"
+
+# `mix translate_dataset_types` writes its output to a SEPARATE file rather than
+# mutating the original, so the enriched dataset normally lives beside it under
+# its own name. Prefer that file when it is present: the Descr-track prompt
+# needs `translated_type`, and requiring a manual `mv` to swap it in is exactly
+# how a run ends up training on the stale copy.
+TRANSLATED_DATASET = "data/dataset.with_translated_types.jsonl"
+ORIGINAL_DATASET = "data/dataset.jsonl"
+DATASET = TRANSLATED_DATASET if Path(TRANSLATED_DATASET).is_file() else ORIGINAL_DATASET
 # Seed-scoped outputs so several seeds coexist (a seed only reshuffles the
 # subproject -> split assignment, so its splits must not overwrite another's).
 DATA_DIR = Path(f"data/seed{SEED}")
@@ -66,12 +74,46 @@ def is_track1(e):
     return is_track2(e) and "dynamic()" not in e["elixir_type"]
 
 
+def require_translated_types(entries):
+    """Refuse to write splits from a dataset that predates the type translation.
+
+    The Descr-track prompt reads `translated_type` (prompt.TYPES_FIELD). Writing
+    splits without it produces files that look fine and only fail hours later,
+    inside the first `raw.map()` of a training job. Worse, this script is the
+    way that damage gets done: run on a machine whose dataset.jsonl is stale, it
+    silently OVERWRITES correct splits copied from elsewhere. Fail here instead.
+    """
+    missing = sum(1 for e in entries if "translated_type" not in e)
+    if not missing:
+        return
+
+    raise SystemExit(
+        f"\n{DATASET} has no 'translated_type' on {missing} of {len(entries)} entries.\n"
+        "\n"
+        "Writing splits from it would produce data the Descr track cannot train on,\n"
+        "and would overwrite any correct splits already in place.\n"
+        "\n"
+        f"  With the Elixir toolchain (needs the custom compiler), build {TRANSLATED_DATASET};\n"
+        "  this script then picks it up automatically, no swapping needed:\n"
+        f"    mix translate_dataset_types {ORIGINAL_DATASET}\n"
+        "    python scripts/prepare_data.py 42\n"
+        "\n"
+        "  Without it (e.g. a training node), copy that file across and re-run this\n"
+        "  script -- the split is a pure function of the seed and the subproject\n"
+        "  names, so it reproduces the same partition exactly:\n"
+        f"    rsync -av <local>/{TRANSLATED_DATASET} $PWD/{TRANSLATED_DATASET}\n"
+    )
+
+
 def main():
     with open(DATASET) as f:
         entries = [json.loads(l) for l in f if l.strip()]
 
+    require_translated_types(entries)
+
     track2 = [e for e in entries if is_track2(e)]
     track1 = [e for e in entries if is_track1(e)]
+    print(f"Dataset              : {DATASET}")
     print(f"Total entries        : {len(entries)}")
     print(f"track2 (both_pass)   : {len(track2)}")
     print(f"track1 (no_gradual)  : {len(track1)}  "
