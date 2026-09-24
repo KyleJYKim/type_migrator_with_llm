@@ -16,7 +16,7 @@ same packing, the same optimiser -- with two changes:
 Usage:
     python scripts/train_sft_typespec.py \\
         --config configs/qwen7b_qlora_typespec.yaml \\
-        --data_dir data/seed42/typespec_both_pass \\
+        --data_dir data/seed42/track2_both_pass_expanded \\
         --output_dir runs/qwen7b_typespec/seed42
 """
 import argparse
@@ -57,7 +57,7 @@ def format_prompt(example):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", required=True)
-    parser.add_argument("--data_dir", default="data/seed42/typespec_both_pass")
+    parser.add_argument("--data_dir", default="data/seed42/track2_both_pass_expanded")
     parser.add_argument("--output_dir", default=None)
     args = parser.parse_args()
 

@@ -1,10 +1,10 @@
 #!/bin/bash
-#SBATCH --job-name=ElixirTypespec_CodeT5p
+#SBATCH --job-name=TS-CodeT5p-770m
 #SBATCH --qos=normal
-#SBATCH --gpus=a100_7g.80gb:1
-#SBATCH --cpus-per-task=8
-#SBATCH --mem=64G
-#SBATCH --time=10:00:00
+#SBATCH --gpus=a100_3g.40gb:1
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=32G
+#SBATCH --time=24:00:00
 #SBATCH --output=logs/run-%j.out
 #SBATCH --error=logs/run-%j.err
 
@@ -17,7 +17,7 @@
 # so all four runs are scored on the same 2127 test entries.
 CONFIG="${1:-configs/codet5p_770m_typespec.yaml}"
 SEED=42
-DATASET="typespec_both_pass"
+DATASET="track2_both_pass_expanded"
 DATA_DIR="data/seed${SEED}/${DATASET}"
 TEST="${DATA_DIR}/test.jsonl"
 
@@ -38,7 +38,7 @@ OUT_DIR="${OUT_DIR:-runs/${NAME}}/seed${SEED}"
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
 if [ ! -s "$TEST" ]; then
-  echo "MISSING split: $TEST -- run 'python scripts/prepare_data_typespec.py ${SEED}' first."
+  echo "MISSING split: $TEST -- run 'python scripts/prepare_data.py ${SEED}' first."
   exit 1
 fi
 

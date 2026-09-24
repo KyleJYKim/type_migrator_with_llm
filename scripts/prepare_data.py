@@ -15,6 +15,20 @@ subproject universe (the superset, since track1 is a subset). This guarantees:
 A subproject is `project/module_root`, because a GitHub org (the `project`
 field) such as `mbta` or `cldr` actually contains many independent codebases.
 
+These splits serve BOTH prediction tracks. Each entry carries every field, so a
+track is chosen by which one the prompt module reads, not by a separate cut of
+the data:
+
+  Descr track    target `elixir_type`, types in scope from `translated_type`
+                 (prompt.py)
+  TypeSpec track target `spec`, types in scope from `type`
+                 (prompt_typespec.py)
+
+Both read `track2_both_pass_expanded`, so their test sets are the same 2127
+entries by construction. Use the `_expanded` variant for this: the other label
+modes below rewrite `elixir_type` in train/val, which the TypeSpec track needs
+intact as its scoring reference.
+
 Usage:  python scripts/prepare_data.py [seed]
 """
 import hashlib

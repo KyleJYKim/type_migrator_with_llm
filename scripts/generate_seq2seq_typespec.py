@@ -13,7 +13,7 @@ is no decoding asymmetry between them to qualify the comparison.
 Usage:
     python scripts/generate_seq2seq_typespec.py \\
         --model_dir runs/codet5p_770m_typespec/seed42 \\
-        --test_file data/seed42/typespec_both_pass/test.jsonl \\
+        --test_file data/seed42/track2_both_pass_expanded/test.jsonl \\
         --out_file runs/codet5p_770m_typespec/seed42/eval_on_common.jsonl
 """
 import argparse
@@ -37,7 +37,7 @@ from prompt_logger import GenerationPromptLog, write_manifest
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--model_dir", required=True, help="fine-tuned seq2seq model dir")
-    ap.add_argument("--test_file", default="data/seed42/typespec_both_pass/test.jsonl")
+    ap.add_argument("--test_file", default="data/seed42/track2_both_pass_expanded/test.jsonl")
     ap.add_argument("--out_file", default=None)
     ap.add_argument("--max_new_tokens", type=int, default=256)
     ap.add_argument("--n_samples", type=int, default=0)

@@ -23,7 +23,7 @@ the prompt and the output field:
 Usage:
     python scripts/generate_typespec.py \\
         --adapter_dir runs/qwen7b_typespec/seed42 \\
-        --test_file data/seed42/typespec_both_pass/test.jsonl \\
+        --test_file data/seed42/track2_both_pass_expanded/test.jsonl \\
         --out_file runs/qwen7b_typespec/seed42/eval_on_common.jsonl
 """
 import argparse
@@ -93,7 +93,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--adapter_dir", required=True)
     ap.add_argument("--base_model", default="Qwen/Qwen2.5-Coder-7B")
-    ap.add_argument("--test_file", default="data/seed42/typespec_both_pass/test.jsonl")
+    ap.add_argument("--test_file", default="data/seed42/track2_both_pass_expanded/test.jsonl")
     ap.add_argument("--out_file", default=None)
     # Specs are short (median 62 characters, longest 1178 in the both-pass pool),
     # so 256 tokens is ample; the Descr track needs 1024 for its expanded types.

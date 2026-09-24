@@ -1,10 +1,10 @@
 #!/bin/bash
-#SBATCH --job-name=ElixirTypespec_Qwen
+#SBATCH --job-name=TS-Qwen2.5-7b
 #SBATCH --qos=normal
-#SBATCH --gpus=a100_7g.80gb:1
-#SBATCH --cpus-per-task=8
-#SBATCH --mem=64G
-#SBATCH --time=10:00:00
+#SBATCH --gpus=a100_3g.40gb:1
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=32G
+#SBATCH --time=24:00:00
 #SBATCH --output=logs/run-%j.out
 #SBATCH --error=logs/run-%j.err
 
@@ -14,15 +14,16 @@
 # by `mix eval_typespec_predictions` -- scoring needs the custom compiler and so
 # cannot run here.
 #
-# The split is the same seed-42 subproject partition as the Descr track, entry
-# for entry (prepare_data_typespec.py asserts this), so the two tracks compare
-# directly on the same 2127 test entries.
+# This track reads the SAME split files as the Descr track. Its target is a
+# different field of the same entries (`spec` rather than `elixir_type`), so a
+# separate preparer would only duplicate them -- the two tracks are then
+# comparable on the same 2127 test entries by construction, not by assertion.
 #
 # Decoding is UNCONSTRAINED: there is no TypeSpec grammar in this repo, and
 # leaving both models unconstrained keeps them symmetric on this track.
 CONFIG="${1:-configs/qwen7b_qlora_typespec.yaml}"
 SEED=42
-DATASET="typespec_both_pass"
+DATASET="track2_both_pass_expanded"
 DATA_DIR="data/seed${SEED}/${DATASET}"
 TEST="${DATA_DIR}/test.jsonl"
 
@@ -43,7 +44,7 @@ OUT_DIR="${OUT_DIR:-runs/${NAME}}/seed${SEED}"
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
 if [ ! -s "$TEST" ]; then
-  echo "MISSING split: $TEST -- run 'python scripts/prepare_data_typespec.py ${SEED}' first."
+  echo "MISSING split: $TEST -- run 'python scripts/prepare_data.py ${SEED}' first."
   exit 1
 fi
 

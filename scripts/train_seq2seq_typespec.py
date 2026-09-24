@@ -14,7 +14,7 @@ quantisation, DataCollatorForSeq2Seq with -100 label padding -- changing only:
 Usage:
     python scripts/train_seq2seq_typespec.py \\
         --config configs/codet5p_770m_typespec.yaml \\
-        --data_dir data/seed42/typespec_both_pass \\
+        --data_dir data/seed42/track2_both_pass_expanded \\
         --output_dir runs/codet5p_770m_typespec/seed42
 """
 import argparse
@@ -50,7 +50,7 @@ def load_config(path):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", required=True)
-    parser.add_argument("--data_dir", default="data/seed42/typespec_both_pass")
+    parser.add_argument("--data_dir", default="data/seed42/track2_both_pass_expanded")
     parser.add_argument("--output_dir", default=None)
     args = parser.parse_args()
 
