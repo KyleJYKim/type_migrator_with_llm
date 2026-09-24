@@ -23,7 +23,10 @@ from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 sys.stdout.reconfigure(line_buffering=True)
 
 # Shared prompt (single source of truth) + parsing reused from the causal-LM path.
-import prompt
+# Imported under an alias: `prompt` is also a local variable in main()
+# (the per-entry prompt string), and a module-level `import prompt` would
+# be shadowed by it, making the module unreachable inside the function.
+import prompt as prompt_module
 from prompt import build_prompt as format_prompt
 from generate import parse_generated_type
 from prompt_logger import GenerationPromptLog, write_manifest
@@ -89,7 +92,7 @@ def main():
     # visible by comparing the log against that cap.
     log_dir = Path(out_file).parent
     write_manifest(
-        log_dir, prompt,
+        log_dir, prompt_module,
         phase="generate:seq2seq",
         extra={
             "model_dir": args.model_dir,

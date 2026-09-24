@@ -36,7 +36,7 @@ from transformers import (
 )
 from trl import SFTConfig, SFTTrainer
 
-import prompt
+import prompt as prompt_module
 from prompt import build_prompt  # shared prompt format (single source of truth)
 from prompt_logger import log_training_prompts, write_manifest
 
@@ -153,7 +153,7 @@ def main():
     # sample of the exact texts. Written before training so they survive a run
     # that fails or is cut short.
     write_manifest(
-        output_dir, prompt,
+        output_dir, prompt_module,
         phase="train:sft",
         extra={
             "data_dir": str(data_dir),

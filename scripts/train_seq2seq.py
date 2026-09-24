@@ -37,7 +37,7 @@ from transformers import (
     Seq2SeqTrainingArguments,
 )
 
-import prompt
+import prompt as prompt_module
 from prompt import build_prompt  # shared prompt/encoder-input format (single source of truth)
 from prompt_logger import LazyTexts, log_training_prompts, write_manifest
 
@@ -143,7 +143,7 @@ def main():
     # target are logged as separate fields, matching how the model is fed.
     render = lambda ex: {"encoder_input": build_prompt(ex), "target": ex["elixir_type"]}
     write_manifest(
-        output_dir, prompt,
+        output_dir, prompt_module,
         phase="train:seq2seq",
         extra={
             "data_dir": str(data_dir),

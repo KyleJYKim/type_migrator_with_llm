@@ -29,7 +29,10 @@ except ImportError:  # older/newer layouts keep it in the submodule
 # Prompt/encoder-input format is the single source of truth in prompt.py, shared
 # with train_sft.py and the seq2seq scripts so they can never drift. Switch prompt
 # variants by flipping the INCLUDE_* flags in prompt.py.
-import prompt
+# Imported under an alias: `prompt` is also a local variable in main()
+# (the per-entry prompt string), and a module-level `import prompt` would
+# be shadowed by it, making the module unreachable inside the function.
+import prompt as prompt_module
 from prompt import build_prompt as format_prompt
 from prompt_logger import GenerationPromptLog, write_manifest
 
@@ -129,7 +132,7 @@ def main():
     # bad prediction after the fact.
     log_dir = Path(out_file).parent
     write_manifest(
-        log_dir, prompt,
+        log_dir, prompt_module,
         phase="generate:causal",
         extra={
             "adapter_dir": args.adapter_dir,

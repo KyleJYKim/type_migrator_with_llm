@@ -39,14 +39,19 @@ TEST="${DATA_DIR}/test.jsonl"
 # of truth (train_seq2seq.py falls back to that same key when --output_dir is
 # omitted). Read AFTER the cd: $CONFIG is relative to the project root. Falls back
 # to the config basename if the key is missing; the seed layer is added here.
-NAME=$(basename "$CONFIG" .yaml)
-OUT_DIR=$(python -c 'import sys, yaml; print(yaml.safe_load(open(sys.argv[1])).get("output_dir", ""))' "$CONFIG")
-OUT_DIR="${OUT_DIR:-runs/${NAME}}/seed${SEED}"
 
 eval "$(conda shell.bash hook)"
 conda activate etr
 
 cd ~/elixir_types_trainer/type_migrator_with_llm
+
+# Resolved AFTER `conda activate` and the cd: this reads the config with
+# the env's PyYAML and a repo-relative path. Run before either, the import
+# fails, OUT_DIR falls back to runs/<config-name> and the job silently
+# trains into a different directory than the config names.
+NAME=$(basename "$CONFIG" .yaml)
+OUT_DIR=$(python -c 'import sys, yaml; print(yaml.safe_load(open(sys.argv[1])).get("output_dir", ""))' "$CONFIG")
+OUT_DIR="${OUT_DIR:-runs/${NAME}}/seed${SEED}"
 
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
@@ -64,32 +69,53 @@ else
     --config "$CONFIG" \
     --data_dir "$DATA_DIR" \
     --output_dir "$OUT_DIR"
+  train_status=$?
+  # The exit code, not the presence of a model file. A crash leaves the
+  # PREVIOUS run's config.json in place, so the file check below passes and the
+  # job would generate from stale weights while reporting success.
+  if [ "$train_status" -ne 0 ]; then
+    echo "TRAINING FAILED (exit ${train_status}) -- see logs/run-${SLURM_JOB_ID}.err. Not generating."
+    exit 1
+  fi
 fi
 train_elapsed=$((SECONDS - train_start))
 
-# Guard: if training crashed (e.g. OOM), no model is saved -> generate would fail
-# with a confusing "can't load tokenizer" error. Stop here with the real cause.
+# Guard: if training saved nothing (e.g. OOM before the first checkpoint),
+# generate would fail with a confusing "can't load tokenizer" error instead.
 if [ ! -f "${OUT_DIR}/config.json" ]; then
   echo "TRAINING FAILED -- no model saved to ${OUT_DIR} (see the .err log). Skipping generation."
   exit 1
 fi
 
+
+# Never let a previous run's predictions stand in for this one's: the completion
+# check counts lines, and a stale file of the right length passes it. Archived
+# rather than deleted, because these are reported results.
+PREDICTIONS="${OUT_DIR}/eval_on_common.jsonl"
+if [ -e "$PREDICTIONS" ]; then
+  mv "$PREDICTIONS" "${PREDICTIONS}.superseded-$(date +%Y%m%d-%H%M%S)"
+  echo "Archived previous predictions beside ${PREDICTIONS}"
+fi
+
 echo "==================  GENERATE  ${NAME}  =================="
 gen_start=$SECONDS
-python scripts/generate_seq2seq.py \
-  --model_dir "$OUT_DIR" \
-  --test_file "$TEST" \
-  --out_file "${OUT_DIR}/eval_on_common.jsonl" \
-  --max_new_tokens 512 \
-  --trust_remote_code
+if ! python scripts/generate_seq2seq.py \
+    --model_dir "$OUT_DIR" \
+    --test_file "$TEST" \
+    --out_file "$PREDICTIONS" \
+    --max_new_tokens 512 \
+    --trust_remote_code; then
+  echo "GENERATION FAILED -- see logs/run-${SLURM_JOB_ID}.err."
+  exit 1
+fi
 gen_elapsed=$((SECONDS - gen_start))
 
 echo "==================  COMPLETION CHECK  =================="
 expected=$(wc -l < "$TEST" | tr -d ' ')
-if [ ! -s "${OUT_DIR}/eval_on_common.jsonl" ]; then
+if [ ! -s "$PREDICTIONS" ]; then
   echo "GENERATION INCOMPLETE -- output missing."; exit 1
 fi
-got=$(wc -l < "${OUT_DIR}/eval_on_common.jsonl" | tr -d ' ')
+got=$(wc -l < "$PREDICTIONS" | tr -d ' ')
 if [ "$got" -ne "$expected" ]; then
   echo "GENERATION INCOMPLETE (${got}/${expected})."; exit 1
 fi
