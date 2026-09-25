@@ -37,6 +37,14 @@ def main():
     ap.add_argument("--model_dir", required=True, help="fine-tuned seq2seq model dir")
     ap.add_argument("--test_file", default="data/track2_both_pass/test.jsonl")
     ap.add_argument("--out_file", default=None)
+    # Encoder cap. The longest prompt in the corpus is ~1,320 tokens (3,952
+    # characters at a conservative 3 chars/token), so 1536 truncates nothing --
+    # the point is to STOP truncating. It was hardcoded to 512, which silently
+    # cut the tail off ~3-5% of prompts; T5 uses relative position embeddings so
+    # it has no architectural 512 limit, but the TRAINING config must use the
+    # same value or the model meets longer inputs than it ever saw.
+    ap.add_argument("--max_source_length", type=int, default=1536,
+                    help="encoder cap; must match the training config")
     ap.add_argument("--max_new_tokens", type=int, default=256)
     ap.add_argument("--n_samples", type=int, default=0)
     ap.add_argument("--trust_remote_code", action="store_true",
@@ -86,6 +94,7 @@ def main():
     print(f"=== Generating predictions for {n} entries ===")
 
     over_budget_count = 0
+    truncated_count = 0
 
     # Same logging as the causal generator. The prompt is recorded BEFORE the
     # encoder's 512-token truncation below, so a silently shortened input is
@@ -101,7 +110,7 @@ def main():
             "entries": n,
             "constrained_decoding": False,
             "max_new_tokens": args.max_new_tokens,
-            "max_source_length": 512,
+            "max_source_length": args.max_source_length,
         },
         example=format_prompt(test[0]) if test else None,
     )
@@ -109,8 +118,13 @@ def main():
     with open(out_file, "w") as fout, GenerationPromptLog(log_dir) as plog:
         for i, ex in enumerate(test):
             prompt = format_prompt(ex)
+            full_len = len(tok(prompt).input_ids)
+            if full_len > args.max_source_length:
+                truncated_count += 1
+                print(f"  [{i+1}/{n}] TRUNCATED: prompt {full_len} tokens "
+                      f"> --max_source_length {args.max_source_length}")
             inputs = tok(prompt, return_tensors="pt", truncation=True,
-                         max_length=512).to(model.device)
+                         max_length=args.max_source_length).to(model.device)
 
             with torch.no_grad():
                 gen = model.generate(
@@ -147,6 +161,7 @@ def main():
     print(f"\n=== Done ===")
     print(f"  Total:                              {n}")
     print(f"  Over budget (ref > {args.max_new_tokens} tok): {over_budget_count}")
+    print(f"  Truncated prompts: {truncated_count}  (should be 0; raise --max_source_length and RETRAIN if not)")
     print(f"  Saved to: {out_file}")
 
 

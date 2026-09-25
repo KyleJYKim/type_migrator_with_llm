@@ -42,6 +42,12 @@ TARGET_FIELD = "spec"
 # same reason in the other notation.
 TYPES_FIELD = "type"
 
+# Same budget as prompt.py, for the same reason. Inert on this track today --
+# the source declarations top out at 1,867 characters, well inside it -- but it
+# keeps the two modules' behaviour identical, so a prompt difference between the
+# tracks can only ever come from the fields they read.
+TYPES_CHAR_BUDGET = 2000
+
 # Prompt-variant toggles -- mirror prompt.py's v1.6 settings.
 INCLUDE_MODULE = True
 INCLUDE_FUNCTION = False
@@ -63,6 +69,22 @@ def _tagged(parts, label, body):
         parts.append(f"{label}:\n{body}\n\n")
 
 
+def _budgeted(declarations, budget):
+    """Join declarations up to `budget` characters, keeping source order.
+
+    Whole declarations only: a type cut in half is worse than an absent one,
+    since it teaches the model a syntax that never denotes anything.
+    """
+    kept, used = [], 0
+    for decl in declarations:
+        need = len(decl) + (1 if kept else 0)
+        if used + need > budget:
+            continue
+        kept.append(decl)
+        used += need
+    return "\n".join(kept)
+
+
 def build_prompt(example):
     """The full prompt / encoder input, up to and including '### Output:\\n'."""
     parts = [
@@ -80,12 +102,20 @@ def build_prompt(example):
     if meta:
         parts.append("\n".join(meta) + "\n\n")
 
-    if INCLUDE_TYPES:
-        _tagged(parts, "Types in scope", _block(example, TYPES_FIELD))
-
+    # Definition FIRST, types in scope after it. If anything ever truncates this
+    # prompt -- an encoder cap, a context limit -- truncation takes the tail, and
+    # the tail must be the expendable part. With types first, an oversized type
+    # block could consume the whole window and cut away the function itself and
+    # the `### Output:` marker, leaving the model to answer from a fragment of a
+    # type declaration; that happened, silently, at a 512-token encoder cap.
+    # Losing trailing type declarations is a graceful degradation instead.
+    #
     # The definition is the one required field: an example without it is a data
     # bug, so index rather than .get() and let the KeyError surface.
     _tagged(parts, "Definition", example["definition"])
+
+    if INCLUDE_TYPES:
+        _tagged(parts, "Types in scope", _budgeted(example.get(TYPES_FIELD) or [], TYPES_CHAR_BUDGET))
 
     if INCLUDE_GROUNDING:
         _tagged(parts, "Argument patterns", _block(example, "argument_patterns"))

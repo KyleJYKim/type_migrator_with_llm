@@ -103,6 +103,12 @@ def main():
     # list until it is cut mid-token). Mild values leave real specs intact.
     ap.add_argument("--repetition_penalty", type=float, default=1.2)
     ap.add_argument("--no_repeat_ngram_size", type=int, default=0)
+    # Safety valve. The types-in-scope budget in the prompt module bounds a
+    # prompt to roughly 1,200 tokens, so this never fires on well-formed data;
+    # it exists so that one pathological entry degrades to a null prediction
+    # instead of OOMing the GPU and losing the rest of the run.
+    ap.add_argument("--max_prompt_tokens", type=int, default=8192,
+                    help="skip (record empty) any entry whose prompt exceeds this")
     args = ap.parse_args()
 
     out_file = args.out_file or Path(args.adapter_dir) / "predictions.jsonl"
@@ -134,6 +140,7 @@ def main():
     print(f"=== Generating {n} TypeSpec predictions (unconstrained decoding) ===")
 
     empty_count = 0
+    skipped_count = 0
 
     # Prompts are logged beside the predictions, with the raw continuation kept
     # next to the parsed spec: a parser bug then shows up as a sound
@@ -159,6 +166,18 @@ def main():
         for i, ex in enumerate(test):
             prompt = format_prompt(ex)
             inputs = tok(prompt, return_tensors="pt").to(model.device)
+
+            n_prompt_tokens = inputs.input_ids.shape[-1]
+            if n_prompt_tokens > args.max_prompt_tokens:
+                skipped_count += 1
+                print(f"  [{i+1}/{n}] SKIPPED: prompt {n_prompt_tokens} tokens "
+                      f"> --max_prompt_tokens {args.max_prompt_tokens}")
+                plog.write(index=i, prompt=prompt, raw_output="",
+                           parsed="", reference=ex.get(TARGET_FIELD), entry=ex)
+                fout.write(json.dumps({**ex, "generated_spec": "",
+                                       "skipped_over_long_prompt": True}) + "\n")
+                fout.flush()
+                continue
 
             with torch.no_grad():
                 gen = model.generate(
@@ -196,6 +215,7 @@ def main():
     print(f"\n=== Done ===")
     print(f"  Total:            {n}")
     print(f"  Empty prediction: {empty_count}")
+    print(f"  Skipped (over-long prompt): {skipped_count}")
     print(f"  Saved to: {out_file}")
     print(f"  Score with: mix eval_typespec_predictions {out_file}")
 

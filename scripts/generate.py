@@ -90,6 +90,12 @@ def main():
     # a capped entry yields a (likely truncated) prediction and the run continues.
     ap.add_argument("--max_time", type=float, default=60.0,
                     help="seconds per entry before generation is cut (constrained path)")
+    # Safety valve. The types-in-scope budget in the prompt module bounds a
+    # prompt to roughly 1,200 tokens, so this never fires on well-formed data;
+    # it exists so that one pathological entry degrades to a null prediction
+    # instead of OOMing the GPU and losing the rest of the run.
+    ap.add_argument("--max_prompt_tokens", type=int, default=8192,
+                    help="skip (record empty) any entry whose prompt exceeds this")
     args = ap.parse_args()
 
     out_file = args.out_file or Path(args.adapter_dir) / "predictions.jsonl"
@@ -126,6 +132,7 @@ def main():
     print(f"=== Generating predictions for {n} entries ===")
 
     over_budget_count = 0
+    skipped_count = 0
 
     # Prompts are logged beside the predictions, with the raw continuation kept
     # next to the parsed type, so a parsing artefact is distinguishable from a
@@ -151,6 +158,18 @@ def main():
         for i, ex in enumerate(test):
             prompt = format_prompt(ex)
             inputs = tok(prompt, return_tensors="pt").to(model.device)
+
+            n_prompt_tokens = inputs.input_ids.shape[-1]
+            if n_prompt_tokens > args.max_prompt_tokens:
+                skipped_count += 1
+                print(f"  [{i+1}/{n}] SKIPPED: prompt {n_prompt_tokens} tokens "
+                      f"> --max_prompt_tokens {args.max_prompt_tokens}")
+                plog.write(index=i, prompt=prompt, raw_output="",
+                           parsed="", reference=ex.get("elixir_type"), entry=ex)
+                fout.write(json.dumps({**ex, "generated_elixir_type": "",
+                                       "skipped_over_long_prompt": True}) + "\n")
+                fout.flush()
+                continue
 
             gen_kwargs = dict(
                 max_new_tokens=args.max_new_tokens,
@@ -212,6 +231,7 @@ def main():
     print(f"\n=== Done ===")
     print(f"  Total:                              {n}")
     print(f"  Over budget (ref > {args.max_new_tokens} tok): {over_budget_count}")
+    print(f"  Skipped (over-long prompt): {skipped_count}")
     print(f"  Saved to: {out_file}")
 
 

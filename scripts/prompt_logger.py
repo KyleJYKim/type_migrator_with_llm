@@ -54,6 +54,7 @@ def write_manifest(out_dir, prompt_module, *, phase, extra=None, example=None):
         "instruction": getattr(prompt_module, "INSTRUCTION", None),
         "target_field": getattr(prompt_module, "TARGET_FIELD", None),
         "types_field": getattr(prompt_module, "TYPES_FIELD", None),
+        "types_char_budget": getattr(prompt_module, "TYPES_CHAR_BUDGET", None),
         "toggles": {
             name: getattr(prompt_module, name)
             for name in ("INCLUDE_MODULE", "INCLUDE_FUNCTION", "INCLUDE_TYPES",

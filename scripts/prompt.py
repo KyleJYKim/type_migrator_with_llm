@@ -42,6 +42,22 @@ INSTRUCTION = (
 TARGET_FIELD = "elixir_type"
 TYPES_FIELD = "translated_type"
 
+# Character budget for the `Types in scope` block.
+#
+# Translation EXPANDS a type: a compact source reference becomes its fully
+# resolved Descr form, and a recursive or variable-arity one can blow up without
+# bound. In the current dataset the source block tops out at 1,867 characters
+# while its translation reaches 531,964 (Membrane's SchemeParser) -- enough to
+# push a single prompt past 133k tokens and OOM a generation run mid-way.
+#
+# The dataset already bounds the cross-module part of the source block at
+# construction time (TranslationRunner's @max_referenced_chars); this is the
+# same idea applied after translation, where the expansion actually happens.
+# 2,000 keeps the block at the scale the source one had, and costs 4.3% of
+# entries part of their context -- against a 1,024-token training budget that a
+# larger block would exhaust on its own.
+TYPES_CHAR_BUDGET = 2000
+
 # Prompt-variant toggles -- flip in this one place to switch every script.
 # v1   = definition only.
 # v1.5 = module + user types.
@@ -66,6 +82,28 @@ def _tagged(parts, label, body):
         parts.append(f"{label}:\n{body}\n\n")
 
 
+def _budgeted(declarations, budget):
+    """Join declarations up to `budget` characters, keeping source order.
+
+    Whole declarations only: a type cut in half is worse than an absent one,
+    since it teaches the model a syntax that never denotes anything.
+
+    An oversized declaration is SKIPPED rather than ending the block, because
+    the one construct that blows up here -- a variable-arity `(... -> T)`,
+    expanded by the translation into a union over arities 0..255 -- can appear
+    early among several small, useful ones. Declarations are independent lines,
+    so keeping a later one without an earlier one loses nothing.
+    """
+    kept, used = [], 0
+    for decl in declarations:
+        need = len(decl) + (1 if kept else 0)
+        if used + need > budget:
+            continue
+        kept.append(decl)
+        used += need
+    return "\n".join(kept)
+
+
 def _types_block(example):
     """The types in scope, in Elixir Types notation.
 
@@ -75,7 +113,7 @@ def _types_block(example):
     costs a full run to discover.
     """
     if TYPES_FIELD in example:
-        return _block(example, TYPES_FIELD)
+        return _budgeted(example.get(TYPES_FIELD) or [], TYPES_CHAR_BUDGET)
     if example.get("type"):
         raise KeyError(
             f"Entry carries 'type' but no {TYPES_FIELD!r}: these splits predate the "
@@ -117,12 +155,20 @@ def build_prompt(example):
     if meta:
         parts.append("\n".join(meta) + "\n\n")
 
-    if INCLUDE_TYPES:
-        _tagged(parts, "Types in scope", _types_block(example))
-
+    # Definition FIRST, types in scope after it. If anything ever truncates this
+    # prompt -- an encoder cap, a context limit -- truncation takes the tail, and
+    # the tail must be the expendable part. With types first, an oversized type
+    # block could consume the whole window and cut away the function itself and
+    # the `### Output:` marker, leaving the model to answer from a fragment of a
+    # type declaration; that happened, silently, at a 512-token encoder cap.
+    # Losing trailing type declarations is a graceful degradation instead.
+    #
     # The definition is the one required field: an example without it is a data
     # bug, so index rather than .get() and let the KeyError surface.
     _tagged(parts, "Definition", example["definition"])
+
+    if INCLUDE_TYPES:
+        _tagged(parts, "Types in scope", _types_block(example))
 
     if INCLUDE_GROUNDING:
         _tagged(parts, "Argument patterns", _block(example, "argument_patterns"))

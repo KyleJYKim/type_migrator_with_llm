@@ -8,19 +8,29 @@ output_dir: runs/codet5p_770m_typespec
 trust_remote_code: false
 
 seq2seq:
-  max_source_length: 512    # encoder cap (CodeT5+ architectural max); Qwen sees 1024
-  max_target_length: 512    # a spec is far shorter than a Descr type: ample headroom
+  # 1536, not 512. At 512 the encoder silently truncated the tail of ~3-5% of
+  # prompts (and, before the prompt reorder, could cut away the definition and
+  # the `### Output:` marker entirely). The longest prompt in the corpus is
+  # ~1,320 tokens, so nothing truncates here. T5's relative position embeddings
+  # impose no architectural 512 limit. generate_seq2seq*.py must be run with the
+  # SAME --max_source_length, and reports a count if anything still truncates.
+  max_source_length: 1536
+  # Attention memory grows with the square of the sequence length, so tripling
+  # the cap needs the batch split and checkpointing on to fit; the effective
+  # batch stays 16, matching the Qwen run.
+  max_target_length: 512    # targets are far shorter: the filter keeps <1000 chars
 
 training:
-  per_device_train_batch_size: 4     # batch 16 OOMs full-FT on the 40GB MIG slice
+  per_device_train_batch_size: 2     # batch 16 OOMs full-FT on the 40GB MIG slice
   per_device_eval_batch_size: 4
-  gradient_accumulation_steps: 4     # effective batch 16 (matches the Qwen run)
+  gradient_accumulation_steps: 8     # effective batch 16, at half the per-device size
   num_train_epochs: 1.2
   learning_rate: 0.0001
   lr_scheduler_type: cosine
   warmup_ratio: 0.1
   weight_decay: 0.01
   bf16: true
+  gradient_checkpointing: true   # trades compute for activation memory at the longer encoder length
   optim: paged_adamw_8bit
   seed: 42
   eval_steps: 25                     # == save_steps so every eval is a best-checkpoint candidate

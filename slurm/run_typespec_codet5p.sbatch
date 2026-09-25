@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=TS-CodeT5p-770m
 #SBATCH --qos=normal
-#SBATCH --gpus=a100_3g.40gb:1
+#SBATCH --gpus=a100_7g.80gb:1
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=32G
 #SBATCH --time=24:00:00
@@ -34,6 +34,12 @@ cd ~/elixir_types_trainer/type_migrator_with_llm
 NAME=$(basename "$CONFIG" .yaml)
 OUT_DIR=$(python -c 'import sys, yaml; print(yaml.safe_load(open(sys.argv[1])).get("output_dir", ""))' "$CONFIG")
 OUT_DIR="${OUT_DIR:-runs/${NAME}}/seed${SEED}"
+
+# Read the encoder cap from the SAME config the trainer uses, and pass it to the
+# generator below. Hardcoding it in two places is how a model trained at one
+# length ends up generating at another.
+MAX_SRC=$(python -c 'import sys, yaml; print(yaml.safe_load(open(sys.argv[1]))["seq2seq"]["max_source_length"])' "$CONFIG")
+echo "Encoder cap from ${CONFIG}: ${MAX_SRC} tokens"
 
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
@@ -69,6 +75,7 @@ echo "==================  GENERATE  ${DATASET}  (unconstrained)  ===============
 if ! python scripts/generate_seq2seq_typespec.py \
     --model_dir "$OUT_DIR" \
     --test_file "$TEST" \
+    --max_source_length "$MAX_SRC" \
     --out_file "$PREDICTIONS"; then
   echo "GENERATION FAILED -- see logs/run-${SLURM_JOB_ID}.err."
   exit 1
