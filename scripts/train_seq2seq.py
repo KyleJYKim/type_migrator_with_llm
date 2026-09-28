@@ -205,6 +205,13 @@ def main():
     )
 
     trainer.train()
+    # Confirm best-checkpoint selection took effect. With load_best_model_at_end
+    # the model in memory here should be the best checkpoint, not the final
+    # weights; a None means the reload did NOT happen and save_model below would
+    # persist the final weights, so generation would run on the wrong model.
+    print(f"=== best_model_checkpoint={trainer.state.best_model_checkpoint} "
+          f"best_metric(eval_loss)={trainer.state.best_metric} "
+          f"global_step={trainer.state.global_step} ===")
     trainer.save_model(output_dir)         # saves the FULL fine-tuned model
     tokenizer.save_pretrained(output_dir)
     print(f"=== Done. Model saved to {output_dir} ===")
