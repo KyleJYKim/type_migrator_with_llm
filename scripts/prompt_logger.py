@@ -57,7 +57,7 @@ def write_manifest(out_dir, prompt_module, *, phase, extra=None, example=None):
         "types_char_budget": getattr(prompt_module, "TYPES_CHAR_BUDGET", None),
         "toggles": {
             name: getattr(prompt_module, name)
-            for name in ("INCLUDE_MODULE", "INCLUDE_FUNCTION", "INCLUDE_TYPES",
+            for name in ("INCLUDE_INSTRUCTION", "INCLUDE_MODULE", "INCLUDE_FUNCTION", "INCLUDE_TYPES",
                          "INCLUDE_GROUNDING")
             if hasattr(prompt_module, name)
         },

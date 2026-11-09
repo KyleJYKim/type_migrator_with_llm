@@ -24,6 +24,8 @@ Layout invariants (keep these when adding a field):
     reflow the others.
 """
 
+import os
+
 INSTRUCTION = (
     "For the given Elixir function definition, infer the most precise correct "
     "function type, written as an Elixir set-theoretic type annotation. "
@@ -62,6 +64,10 @@ TYPES_CHAR_BUDGET = 2000
 # v1   = definition only.
 # v1.5 = module + user types.
 # v1.6 = v1.5 + `Definition:` tag, empty blocks dropped, uniform blank lines.
+# The instruction block can be switched off for the instruction ablation
+# (checkpoint-selection study). Read from the environment so that training and
+# generation in one job always agree; the manifest records the value in effect.
+INCLUDE_INSTRUCTION = os.environ.get("ETR_INCLUDE_INSTRUCTION", "1") != "0"
 INCLUDE_MODULE = True
 INCLUDE_FUNCTION = False
 INCLUDE_TYPES = True
@@ -138,12 +144,10 @@ def _types_block(example):
 
 def build_prompt(example):
     """The full prompt / encoder input, up to and including '### Output:\\n'."""
-    parts = [
-        "### Instruction:\n",
-        INSTRUCTION,
-        "\n\n",
-        "### Input:\n",
-    ]
+    parts = []
+    if INCLUDE_INSTRUCTION:
+        parts += ["### Instruction:\n", INSTRUCTION, "\n\n"]
+    parts.append("### Input:\n")
 
     # One-line metadata fields share a single block so that enabling both does
     # not put a blank line between two one-liners.

@@ -1,0 +1,42 @@
+# Checkpoint-selection study (scripts/train_sft_masked.py + sweep_checkpoints.py).
+# Same model, LoRA and optimiser settings as qwen7b_qlora.yaml; differences:
+#   * no packing (train_sft_masked.py never packs), so ~4x more, smaller steps;
+#   * every checkpoint is KEPT and nothing is auto-selected by eval_loss --
+#     selection happens afterwards on validation compatibility.
+model_name_or_path: Qwen/Qwen2.5-Coder-7B
+output_dir: runs/sweep/qwen7b
+
+quantization:
+  load_in_4bit: true
+  bnb_4bit_quant_type: nf4
+  bnb_4bit_use_double_quant: true
+  bnb_4bit_compute_dtype: bfloat16
+
+lora:
+  r: 32
+  alpha: 64
+  dropout: 0.05
+  target_modules: [q_proj, k_proj, v_proj, o_proj, gate_proj, up_proj, down_proj]
+
+training:
+  per_device_train_batch_size: 2
+  per_device_eval_batch_size: 4
+  gradient_accumulation_steps: 8     # effective batch 16, as before
+  num_train_epochs: 1.2
+  learning_rate: 0.0001
+  lr_scheduler_type: cosine
+  warmup_ratio: 0.1
+  weight_decay: 0.01
+  bf16: true
+  optim: paged_adamw_8bit
+  max_seq_length: 1024
+  seed: 42
+  # ~620 steps/epoch unpacked -> ~740 steps; a checkpoint every 50 steps gives
+  # ~15 candidates (every ~0.08 epoch). Adapters only (save_only_model), ~0.3 GB each.
+  save_steps: 50
+  eval_steps: 50
+  eval_subset: 800                   # in-training eval loss is a log only
+  save_total_limit: null             # keep every checkpoint
+  save_only_model: true
+  logging_steps: 5
+  report_to: none

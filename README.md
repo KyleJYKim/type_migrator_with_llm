@@ -154,3 +154,44 @@ See the comment header of each `.sbatch` file for what it trains and why
 
 No license file is included; this is an academic thesis project. Contact
 the author for reuse beyond the thesis's own citation.
+
+## Checkpoint-selection study (follow-up)
+
+The thesis selected each checkpoint by lowest validation loss. For Qwen that
+loss is computed over the whole prompt + type (`train_sft.py`), so it mostly
+measures predicting source code, and it did not track compatibility. This study
+selects by the task metric instead and asks which cheap signal could stand in.
+
+Four arms, a 2x2 of loss (full / completion-only) x instruction (on / off):
+
+```bash
+# on the cluster: train an arm, keeping every checkpoint (~15)
+sbatch slurm/train_masked_qwen.sbatch completion 1       # args: <full|completion> <instr 1|0>
+# then signals + constrained generation on a fixed 400-function validation subset
+sbatch --array=0-3 slurm/sweep_qwen.sbatch runs/sweep/qwen7b_completion_instr1/seed42 1
+
+# locally (needs type_migrator's Elixir toolchain): score, then collect
+scripts/score_sweep.sh runs/sweep/qwen7b_completion_instr1/seed42
+python scripts/collect_sweep.py runs/sweep/qwen7b_*_instr*/seed42
+```
+
+`collect_sweep.py` writes `sweep/summary.md` per run: compatibility (± one
+standard error), exact match and every signal per checkpoint; which checkpoint
+each rule picks (validation compatibility, training eval_loss, full-sequence
+loss, type-only loss, type-token accuracy); and each signal's Spearman
+correlation with compatibility. Only after choosing, generate on the test set
+once with the chosen checkpoint (`generate.py --adapter_dir <run>/checkpoint-N`).
+
+The instruction is toggled with `ETR_INCLUDE_INSTRUCTION=0|1` (read by
+`prompt.py`; recorded in `prompt_manifest.json`). The sweep refuses to run if
+it does not match the run's manifest.
+
+Smoke test before the real runs (0.5B model, 300 examples, 20-function subset):
+
+```bash
+python scripts/train_sft_masked.py --config configs/qwen05b_smoke.yaml --loss completion \
+  --data_dir data/seed42/track2_both_pass_expanded --output_dir runs/sweep/smoke --max_train_examples 300
+python scripts/sweep_checkpoints.py --run_dir runs/sweep/smoke --base_model Qwen/Qwen2.5-Coder-0.5B \
+  --data_dir data/seed42/track2_both_pass_expanded --n 20 --constrain
+```
+(The smoke subset is written as `val_sweep_n20_s42.jsonl`, separate from the real one.)
