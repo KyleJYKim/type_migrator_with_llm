@@ -30,6 +30,19 @@ if [ -d "$RUN_DIR" ] && ls "$RUN_DIR"/checkpoint-* >/dev/null 2>&1; then
   echo "$RUN_DIR already has checkpoints; move it away first."; exit 1
 fi
 
+# Create the run dir here, in the shell, before Python does. Four arms submitted
+# together all create runs/sweep at once; on the cluster's shared filesystem a
+# node can briefly not see the folder another node just made, and Python's
+# mkdir then fails with FileExistsError. `mkdir -p` (plus a short retry) is safe.
+# Listing the parents first makes the node revalidate its cached view of them
+# (a stale "does not exist" entry is what makes mkdir fail with EEXIST).
+for _ in 1 2 3 4 5 6; do
+  ls -a runs runs/sweep > /dev/null 2>&1
+  mkdir -p "$RUN_DIR" 2>/dev/null && [ -d "$RUN_DIR" ] && break
+  sleep 10
+done
+[ -d "$RUN_DIR" ] || { echo "cannot create $RUN_DIR"; exit 1; }
+
 echo "==========  TRAIN  loss=${LOSS}  instruction=${INSTR}  ->  ${RUN_DIR}  =========="
 python scripts/train_sft_masked.py --config configs/qwen7b_qlora_sweep.yaml \
   --data_dir "$DATA_DIR" --output_dir "$RUN_DIR" --loss "$LOSS" || { echo "TRAINING FAILED"; exit 1; }

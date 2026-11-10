@@ -48,6 +48,31 @@ from prompt_logger import log_training_prompts, write_manifest
 EOS = "<|endoftext|>"
 
 
+def ensure_dir(path, tries=6, wait=10):
+    """mkdir -p that survives a shared filesystem's stale directory cache.
+
+    On the cluster a compute node can hold a stale "does not exist" entry for a
+    parent folder that another node created, so mkdir fails with EEXIST while
+    is_dir() still says False. Listing the parents forces a fresh lookup; then
+    retry for up to a minute.
+    """
+    import os, time
+    for i in range(tries):
+        for parent in reversed(path.parents):
+            try:
+                os.listdir(parent if str(parent) else ".")
+            except OSError:
+                pass
+        try:
+            path.mkdir(parents=True, exist_ok=True)
+            if path.is_dir():
+                return
+        except OSError as e:
+            print(f"  mkdir {path} failed ({e}); retry {i + 1}/{tries}")
+        time.sleep(wait)
+    raise RuntimeError(f"cannot create {path}")
+
+
 def load_jsonl(path):
     with open(path) as f:
         return [json.loads(l) for l in f if l.strip()]
@@ -88,6 +113,7 @@ def main():
     cfg = yaml.safe_load(open(args.config))
     t = cfg["training"]
     out = Path(args.output_dir)
+    ensure_dir(out)
     print(f"=== loss={args.loss}  instruction={prompt_module.INCLUDE_INSTRUCTION}  out={out} ===")
 
     tok = AutoTokenizer.from_pretrained(cfg["model_name_or_path"])
